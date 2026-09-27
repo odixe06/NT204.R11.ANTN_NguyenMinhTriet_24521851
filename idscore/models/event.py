@@ -1,3 +1,5 @@
+# schema cho event, ghi dữ liệu parser phân tích từ một packet
+
 from dataclasses import asdict, dataclass, field
 
 
@@ -7,7 +9,7 @@ class Event:
     packet_id: int # bắt buộc có
     timestamp: float
     source: str
-    source_type: str
+    source_type: str # "pcap" hoặc "live"
 
     # layer 2
     src_mac: str | None = None 
