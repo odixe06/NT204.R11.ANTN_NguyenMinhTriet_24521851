@@ -13,9 +13,10 @@ conda activate btids
 ## Mục đích khi sử dụng các công cụ AI:
 
 - Thiết kế cấu trúc thư mục dự án
-- Kiểm tra syntax và chạy thử các file khi viết code
-- Công cụ: GitHub Copilot
+- Kiểm tra syntax và logic của các đoạn code
+- Công cụ: GitHub Copilot + Claude Code
 - File có hỗ trợ AI: `idscore/capture/base.py`, `idscore/capture/pcap.py`, `idscore/capture/live.py`, `idscore/cli.py`, `main.py`
+
 
 ## Lưu ý khi làm:
 

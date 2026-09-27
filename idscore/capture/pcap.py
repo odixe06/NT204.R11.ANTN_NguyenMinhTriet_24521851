@@ -2,6 +2,7 @@
 # sử dụng class con PcapCapture  
 
 from pathlib import Path
+from collections.abc import Iterator
 from typing import Literal
 
 from scapy.packet import Packet
@@ -24,7 +25,7 @@ class PcapCapture(BaseCapture):
     def source_type(self) -> Literal["pcap"]: 
         return "pcap"
 
-    def packets(self):
+    def packets(self) -> Iterator[tuple[Packet, float]]:
         try:
             with PcapReader(str(self._path)) as reader:
                 for packet in reader:
