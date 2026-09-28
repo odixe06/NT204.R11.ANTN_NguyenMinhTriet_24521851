@@ -1,4 +1,4 @@
-#pipeline tổng thể cho quá trình parser ghi thông tin các gói tin vào event
+# pipeline tổng thể cho quá trình parser ghi thông tin các gói tin vào event
 # thứ tự các tầng: parser link -> network -> transport -> app detector -> app parser
 
 from collections.abc import Mapping, Sequence

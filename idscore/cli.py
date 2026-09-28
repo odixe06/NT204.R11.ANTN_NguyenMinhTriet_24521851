@@ -12,6 +12,7 @@ from idscore.output.jsonl_writer import JsonlWriter
 from idscore.parsers.application.detector import AppProtocolDetector
 from idscore.parsers.application.registry import build_app_parsers
 from idscore.parsers.link.ethernet import EthernetParser
+from idscore.parsers.link.undecoded import UndecodedFrameParser
 from idscore.parsers.network.ipv4 import IPv4Parser
 from idscore.parsers.transport.tcp import TCPParser
 from idscore.parsers.transport.udp import UDPParser
@@ -52,7 +53,7 @@ def build_capture(args: argparse.Namespace) -> BaseCapture:
 # chọn parser cho từng tầng, Pipeline không cần biết đang có những parser nào
 def build_pipeline() -> Pipeline:
     return Pipeline(
-        [EthernetParser()],
+        [EthernetParser(), UndecodedFrameParser()],
         [IPv4Parser()],
         [TCPParser(), UDPParser()],
 

@@ -44,6 +44,7 @@ conda activate btids
 - TCP header là 1 cờ có 8 bit, tương ứng với thứ tự ["FIN", "SYN", "RST", "PSH", "ACK", "URG", "ECE", "CWR"], lưu ý để detect chính xác. 
 - Bài tập yêu cầu không được chỉ sử dụng port để xác định protocol => phải kiểm tra payload thô để xem nội dung payload thay vì dùng layer dựng sẵn của scapy.
 - Event không phụ thuộc Scapy vì Detector chỉ làm việc với event, còn parser sẽ tiếp xúc với scapy.
+- Với file pcapng có linktype không hỗ trợ, các frame vẫn bị gán `MALFORMED`
 
 #### Dict trong field app ghi những thông tin gì với các giao thức được hỗ trợ: 
 
