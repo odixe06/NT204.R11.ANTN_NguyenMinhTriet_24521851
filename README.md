@@ -10,6 +10,26 @@ File requirements.txt là các thư viện cần cài vào môi trường để 
 conda activate btids
 ```
 
+## Pipeline xử lý: 
+
+```text
+[ Packet Capture ]
+       │
+       ▼  yield (packet, timestamp)
+┌────────────────────────────────────────────────────────┐
+│ Processing Pipeline                                    │
+│                                                        │
+│  1. Event Init        → Tạo Event rỗng + metadata      │
+│  2. IPv4 Parser       → src_ip, dst_ip, ttl, ...       │
+│  3. TCP/UDP Parser    → src_port, dst_port, flags, ... │
+│  4. Protocol Detector → app_protocol, detection_method │
+│  5. App Parser        → bóc tách payload thành app dict│
+└────────────────────────────────────────────────────────┘
+       │
+       ▼  event.to_dict()
+[ JSON Lines Logger ] (.jsonl)
+```           
+
 ## Mục đích khi sử dụng các công cụ AI:
 
 - Thiết kế cấu trúc thư mục dự án

@@ -10,7 +10,7 @@ from idscore.models.event import Event
 
 
 class BaseParser(ABC):
-# pipeline chỉ gọi parser qua interface này, thêm parser mới không phải sửa pipeline
+# pipeline chỉ gọi parser qua interface này, thêm parser mới thì kế thừa  
     @property
     @abstractmethod # nhãn này đánh dấu những thuộc tính/hàm bắt buộc có ở class con
     def name(self) -> str:
