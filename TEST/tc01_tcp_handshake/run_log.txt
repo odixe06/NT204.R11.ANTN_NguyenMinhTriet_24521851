@@ -1,0 +1,2 @@
+2026-09-28 20:39:47,606 INFO idscore.cli: Reading from pcap 'TEST/tc01_tcp_handshake/input.pcap', writing events to 'TEST/tc01_tcp_handshake/events.jsonl'
+2026-09-28 20:39:47,608 INFO idscore.cli: Total packets: 3 (OK 3, PARTIAL 0, UNKNOWN 0, MALFORMED 0)
