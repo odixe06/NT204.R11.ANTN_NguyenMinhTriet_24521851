@@ -1,5 +1,6 @@
 # file này xây dựng class Jsonl writer, kế thừa BaseWriter 
 # ghi các đối tượng event vào file định dạng json lines (mỗi sự kiện 1 dòng)
+# ví dụ: {"packet_id":5,"src_ip":"10.0.0.1",...,"parse_status":"MALFORMED","errors":[...]}
 
 import json
 from pathlib import Path
