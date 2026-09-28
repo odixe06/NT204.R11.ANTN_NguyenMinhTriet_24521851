@@ -48,11 +48,22 @@ DNS_QDCOUNT_OFFSET = 4
 DNS_QUESTION_TAIL_LEN = 4
 DNS_LABEL_MAX = 63
 DNS_OPCODES = frozenset({0, 1, 2, 4, 5})
+DNS_QDCOUNT = 1
+
+TCP_PORTS = {
+    80: "HTTP",
+    8080: "HTTP",
+    25: "SMTP",
+    587: "SMTP",
+}
+UDP_PORTS = {
+    53: "DNS",
+}
 
 
 class AppProtocolDetector(BaseParser):
-    """Name the application protocol of a payload without looking at ports."""
-    # thêm port fallback nếu không được được bằng payload thô
+    """Name the application protocol from the payload, falling back to the port."""
+    # payload là tín hiệu chính, port chỉ bù cho segment không còn dấu hiệu nào
     @property
     def name(self) -> str:
         return "app_detector"
@@ -75,7 +86,17 @@ class AppProtocolDetector(BaseParser):
             if layer is None:
                 return
             payload = self._payload_bytes(layer) # lấy byte thô của payload
-            protocol = self._detect(payload, self._transport_name(layer)) # gọi hàm detect
+            transport = self._transport_name(layer)
+            protocol = self._detect(payload, transport) # gọi hàm detect
+            method = "payload"
+
+            if protocol is None:
+                protocol = self._detect_by_port(layer, transport)
+                method = "port"
+
+            if protocol is None:
+                protocol = "UNKNOWN"
+                method = None
 
         # nếu xảy ra exception -> hạ xuống malformed
         except Exception as exc:
@@ -83,9 +104,9 @@ class AppProtocolDetector(BaseParser):
             return
 
         # phát hiện protocol -> ghi vào event
-        if protocol is not None:
-            event.app_protocol = protocol
-            event.detection_method = "payload"
+        event.app_protocol = protocol
+        if method is not None:
+            event.detection_method = method
 
     # hàm kiểm tra nếu có packet TCP/UDP thì trả về layer tương ứng
     # không có thì none
@@ -97,6 +118,14 @@ class AppProtocolDetector(BaseParser):
 
     def _transport_name(self, layer: Packet) -> str:
         return "TCP" if isinstance(layer, TCP) else "UDP"
+
+    def _detect_by_port(self, layer: Packet, transport: str) -> str | None:
+        ports = TCP_PORTS if transport == "TCP" else UDP_PORTS
+        for port in (int(layer.sport), int(layer.dport)):
+            protocol = ports.get(port)
+            if protocol is not None:
+                return protocol
+        return None
 
     # hàm detect nhận diện theo thứ tự 
     def _detect(self, payload: bytes, transport: str) -> str | None:
@@ -167,7 +196,7 @@ class AppProtocolDetector(BaseParser):
         rest = line[SMTP_CODE_LEN:]
         return rest.startswith(b" ") or rest.startswith(b"-")
 
-
+    # kiểm tra phần header cố định của dns
     def _is_dns(self, payload: bytes) -> bool:
         if len(payload) < DNS_HEADER_LEN:
             return False
@@ -175,7 +204,7 @@ class AppProtocolDetector(BaseParser):
         qdcount = int.from_bytes(
             payload[DNS_QDCOUNT_OFFSET:DNS_QDCOUNT_OFFSET + 2], "big"
         )
-        if qdcount < 1:
+        if qdcount != DNS_QDCOUNT:
             return False
 
         opcode = (payload[DNS_FLAGS_OFFSET] >> 3) & 0x0F
