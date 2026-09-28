@@ -1,0 +1,2 @@
+2026-09-28 22:11:04,651 INFO idscore.cli: Reading from pcap 'TEST/tc12_malformed_packet/input.pcap', writing events to 'TEST/tc12_malformed_packet/events.jsonl'
+2026-09-28 22:11:04,654 INFO idscore.cli: Total packets: 7 (OK 1, PARTIAL 0, UNKNOWN 0, MALFORMED 6)
