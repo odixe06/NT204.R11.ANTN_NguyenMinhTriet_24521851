@@ -27,6 +27,8 @@ class Pipeline:
 
         # sau khi parser xong thì tiến hành detect protocol
         self.app_detectors = list(app_detectors)
+
+        # detect ra protocol thì gắn packet với parser tương ứng
         self.app_parsers = dict(app_parsers)
 
     # tạo event trước với các field trong metadata
@@ -73,12 +75,25 @@ class Pipeline:
             return
 
         try:
-            if parser.can_parse(packet):
-                parser.parse(packet, event)
+            handled = parser.can_parse(packet)
         except Exception as exc:
-            event.errors.append(f"pipeline: {parser.name} raised {exc!r}")
-            if event.parse_status == "OK":
-                event.parse_status = "PARTIAL"
+            self._app_parser_raised(event, parser, "can_parse", exc)
+            return
+
+        if not handled:
+            return
+
+        try:
+            parser.parse(packet, event)
+        except Exception as exc:
+            self._app_parser_raised(event, parser, "parse", exc)
+
+    def _app_parser_raised(
+        self, event: Event, parser: BaseParser, method: str, exc: Exception
+    ) -> None:
+        event.errors.append(f"pipeline: {parser.name}.{method} raised {exc!r}")
+        if event.parse_status == "OK":
+            event.parse_status = "PARTIAL"
 
     def _run_layer(
         self, parsers: Sequence[BaseParser], packet: Any, event: Event
