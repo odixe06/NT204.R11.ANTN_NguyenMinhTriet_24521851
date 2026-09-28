@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from idscore.capture.base import BaseCapture, CaptureError
 from idscore.capture.live import LiveCapture
 from idscore.capture.pcap import PcapCapture
+from idscore.models.event import Event
 from idscore.output.jsonl_writer import JsonlWriter
 from idscore.parsers.application.detector import AppProtocolDetector
 from idscore.parsers.application.registry import build_app_parsers
@@ -63,6 +64,58 @@ def build_pipeline() -> Pipeline:
     )
 
 
+def _fallback_event(
+    packet_id: int, timestamp: float, capture: BaseCapture, message: str
+) -> Event:
+    return Event(
+        packet_id=packet_id,
+        timestamp=timestamp,
+        source=capture.source,
+        source_type=capture.source_type,
+        parse_status="MALFORMED",
+        errors=[message],
+    )
+
+
+def _process_safely(
+    pipeline: Pipeline,
+    packet: object,
+    timestamp: float,
+    packet_id: int,
+    capture: BaseCapture,
+) -> Event:
+    try:
+        return pipeline.process(
+            packet, timestamp, packet_id, capture.source, capture.source_type
+        )
+    except Exception as exc:
+        logger.error("Packet %d could not be processed: %r", packet_id, exc)
+        logger.info("Traceback of packet %d", packet_id, exc_info=True)
+        return _fallback_event(
+            packet_id, timestamp, capture, f"cli: pipeline.process raised {exc!r}"
+        )
+
+
+def _write_safely(
+    writer: JsonlWriter, event: Event, packet_id: int, capture: BaseCapture
+) -> None:
+    try:
+        writer.write(event)
+    except OSError:
+        raise
+    except Exception as exc:
+        logger.error("Packet %d could not be serialised: %r", packet_id, exc)
+        logger.info("Traceback of packet %d", packet_id, exc_info=True)
+        writer.write(
+            _fallback_event(
+                packet_id,
+                event.timestamp,
+                capture,
+                f"cli: cannot serialise the event: {exc!r}",
+            )
+        )
+
+
 # thực hiện vòng lặp bắt gói tin, đếm số lượng gói tin bắt được
 # nếu có lỗi thì in ra thông báo lỗi
 def main(argv: Sequence[str] | None = None) -> int:
@@ -94,15 +147,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                     capture.packets(), start=1
                 ):
                     packet_count = packet_id
-                    writer.write(
-                        pipeline.process(
-                            packet,
-                            timestamp,
-                            packet_id,
-                            capture.source,
-                            capture.source_type,
-                        )
+                    event = _process_safely(
+                        pipeline, packet, timestamp, packet_id, capture
                     )
+                    _write_safely(writer, event, packet_id, capture)
             except KeyboardInterrupt:
                 logger.info("Capture stopped by the user")
     except CaptureError as error:

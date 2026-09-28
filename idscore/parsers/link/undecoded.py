@@ -19,6 +19,7 @@ class UndecodedFrameParser(BaseParser):
     def can_parse(self, packet: Packet) -> bool:
         """Return True only when the outermost layer itself is ``Raw``."""
         try:
+            # kiểm tra lớp ngoài cùng của packet có phải raw k
             return isinstance(packet, Raw)
         except Exception:
             return False
@@ -27,8 +28,10 @@ class UndecodedFrameParser(BaseParser):
         """Report the undecodable frame, per the ``BaseParser.parse`` contract."""
         try:
             length = len(bytes(packet))
+
+        # nếu đọc byte bị lỗi, thêm lỗi và gắn MALFORMED
         except Exception as exc:
             self._malformed(event, f"cannot read the frame: {exc!r}")
             return
-
+        # k thì thông báo k để decode -> thông báo độ dài của frame
         self._malformed(event, f"cannot decode the link layer: frame is {length} bytes")
