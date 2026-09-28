@@ -1,0 +1,2 @@
+2026-09-28 21:24:01,115 INFO idscore.cli: Reading from pcap 'TEST/tc06_http_response/input.pcap', writing events to 'TEST/tc06_http_response/events.jsonl'
+2026-09-28 21:24:01,118 INFO idscore.cli: Total packets: 10 (OK 10, PARTIAL 0, UNKNOWN 0, MALFORMED 0)
