@@ -1,3 +1,6 @@
+# file này định nghĩa parser của SMTP
+# ghi vào field app của event
+
 from scapy.layers.inet import TCP
 from scapy.packet import Packet
 
@@ -23,15 +26,18 @@ class SMTPParser(BaseParser):
     def name(self) -> str:
         return "smtp"
 
+    # kiểm tra có thể parse không
     def can_parse(self, packet: Packet) -> bool:
         """Return True for a TCP segment carrying payload bytes."""
         try:
+            # kiểm tra TCP hoặc payload rỗng
             if not packet.haslayer(TCP):
                 return False
             return bool(self._payload_bytes(packet[TCP]))
         except Exception:
             return False
-
+        
+    # ghi vào event.app dict
     def parse(self, packet: Packet, event: Event) -> None:
         """Fill ``event.app``, per the ``BaseParser.parse`` contract."""
         try:
