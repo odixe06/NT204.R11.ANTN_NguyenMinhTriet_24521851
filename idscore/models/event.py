@@ -2,6 +2,8 @@
 
 from dataclasses import asdict, dataclass, field
 
+PARSE_STATUSES = ("OK", "PARTIAL", "UNKNOWN", "MALFORMED")
+
 
 @dataclass # decorator tự động tạo method cho các class lưu dữ liệu
 class Event:

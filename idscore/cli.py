@@ -3,12 +3,13 @@
 import argparse # thư viện xử lý tham số cli
 import logging
 import sys
+from collections import Counter
 from collections.abc import Sequence
 
 from idscore.capture.base import BaseCapture, CaptureError
 from idscore.capture.live import LiveCapture
 from idscore.capture.pcap import PcapCapture
-from idscore.models.event import Event
+from idscore.models.event import PARSE_STATUSES, Event
 from idscore.output.jsonl_writer import JsonlWriter
 from idscore.parsers.application.detector import AppProtocolDetector
 from idscore.parsers.application.registry import build_app_parsers
@@ -100,24 +101,34 @@ def _process_safely(
 # xử lý khi quá trình ghi file jsonl bị lỗi
 def _write_safely(
     writer: JsonlWriter, event: Event, packet_id: int, capture: BaseCapture
-) -> None:
+) -> Event:
     try:
         writer.write(event)
     # gặp OSError thì cho qua hàm main xử lý
-    except OSError: 
+    except OSError:
         raise
     # nếu event k thể ghi được mà kp OS Error thì ghi log, traceback và event fallback
     except Exception as exc:
         logger.error("Packet %d could not be serialised: %r", packet_id, exc)
         logger.info("Traceback of packet %d", packet_id, exc_info=True)
-        writer.write(
-            _fallback_event(
-                packet_id,
-                event.timestamp,
-                capture,
-                f"cli: cannot serialise the event: {exc!r}",
-            )
+        fallback = _fallback_event(
+            packet_id,
+            event.timestamp,
+            capture,
+            f"cli: cannot serialise the event: {exc!r}",
         )
+        writer.write(fallback)
+        return fallback
+
+    return event
+
+
+# dòng tổng kết cho cả lượt chạy, luôn in đủ 4 status theo thứ tự cố định
+def _report_summary(total: int, counts: Counter) -> None:
+    breakdown = ", ".join(f"{status} {counts[status]}" for status in PARSE_STATUSES)
+    summary = f"Total packets: {total} ({breakdown})"
+    logger.info(summary)
+    print(summary, file=sys.stderr)
 
 
 # thực hiện vòng lặp bắt gói tin, đếm số lượng gói tin bắt được
@@ -131,6 +142,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     capture = build_capture(args)
     pipeline = build_pipeline()
     packet_count = 0 # bộ đếm
+    counts: Counter = Counter()
+    exit_code = 0
 
     # thông tin log lúc bắt đầu
     # Reading from pcap 'data/pcap/sample.pcap'
@@ -154,17 +167,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                     event = _process_safely(
                         pipeline, packet, timestamp, packet_id, capture
                     )
-                    _write_safely(writer, event, packet_id, capture)
+                    written = _write_safely(writer, event, packet_id, capture)
+                    counts[written.parse_status] += 1
             except KeyboardInterrupt:
                 logger.info("Capture stopped by the user")
     except CaptureError as error:
-        logger.error("Capture error: %s", error)
-        logger.info("Total packets: %d", packet_count)
-        return 1
+        if packet_count > 0:
+            logger.error(
+                "Capture stopped after %d packets: %s", packet_count, error
+            )
+        else:
+            logger.error("Capture error: %s", error)
+        exit_code = 1
     except OSError as error:
         logger.error("Output error: %s", error)
-        return 1
+        exit_code = 1
 
-    logger.info("Total packets: %d", packet_count)
-    print(f"Total packets: {packet_count}", file=sys.stderr)
-    return 0
+    _report_summary(packet_count, counts)
+    return exit_code

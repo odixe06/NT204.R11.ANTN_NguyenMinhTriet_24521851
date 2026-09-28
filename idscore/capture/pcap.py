@@ -12,9 +12,11 @@ from scapy.utils import PcapReader
 
 from idscore.capture.base import BaseCapture, CaptureError
 
-logger = logging.getLogger(__name__)
+# đặt logger ở module để pcap.py có thể ghi log 
+logger = logging.getLogger(__name__) 
 
-PCAP_RECORD_HEADER_LEN = 16
+# mỗi packet trong file pcap có record header 16 byte
+PCAP_RECORD_HEADER_LEN = 16 
 
 
 class PcapCapture(BaseCapture):
@@ -32,7 +34,7 @@ class PcapCapture(BaseCapture):
 
     def packets(self) -> Iterator[tuple[Packet, float]]:
         try:
-            # kiểm tra giao thức ở tầng datalinj
+            # kiểm tra giao thức ở tầng datalink
             with PcapReader(str(self._path)) as reader:
                 link_layer = getattr(reader, "LLcls", None)
 
@@ -51,6 +53,7 @@ class PcapCapture(BaseCapture):
                     # yield là generator, mỗi lần lặp sẽ trả về một tuple gồm packet và timestamp của packet đó
 
                 if link_layer is not None:
+                    # tính byte thừa sau vòng lặp
                     leftover = reader.f.tell() - expected_end
                     if leftover > 0:
                         logger.warning(
