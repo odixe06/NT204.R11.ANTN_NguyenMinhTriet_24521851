@@ -22,6 +22,9 @@ class IPv4Parser(BaseParser):
     # name sẽ đứng đầu message trong event.errors -> xác định lỗi ở parser tầng nào
 
     def can_parse(self, packet: Packet) -> bool:
+
+        # nhận cả frame EtherType 0x0800 mà scapy không dựng được layer IP
+            # đó là packet IPv4 bị cắt header, phải ghi MALFORMED chứ không bỏ qua thành UNKNOWN
         """Return True for an IPv4 layer, or an IPv4 EtherType with no IP layer."""
         try:
             if packet.haslayer(IP):
@@ -29,8 +32,7 @@ class IPv4Parser(BaseParser):
             return bool(packet.haslayer(Ether) and packet[Ether].type == ETH_TYPE_IPV4)
         except Exception:
             return False
-    # nhận cả frame EtherType 0x0800 mà scapy không dựng được layer IP
-    # đó là packet IPv4 bị cắt header, phải ghi MALFORMED chứ không bỏ qua thành UNKNOWN
+    
 
     def parse(self, packet: Packet, event: Event) -> None:
         """Fill the IPv4 fields in place, per the ``BaseParser.parse`` contract."""

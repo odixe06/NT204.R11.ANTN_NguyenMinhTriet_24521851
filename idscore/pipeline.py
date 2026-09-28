@@ -23,6 +23,8 @@ class Pipeline:
         self.link_parsers = list(link_parsers)
         self.network_parsers = list(network_parsers)
         self.transport_parsers = list(transport_parsers)
+
+        # sau khi parser xong thì tiến hành detect protocol
         self.app_detectors = list(app_detectors)
 
     # tạo event trước với các field trong metadata
@@ -55,6 +57,7 @@ class Pipeline:
             self._unknown(event)
             return event
 
+        # chạy detector
         self._run_layer(self.app_detectors, packet, event)
 
         return event

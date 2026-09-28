@@ -36,6 +36,8 @@ def build_pipeline() -> Pipeline:
         [EthernetParser()],
         [IPv4Parser()],
         [TCPParser(), UDPParser()],
+
+        # sau đó chạy đến detector
         [AppProtocolDetector()],
     )
 

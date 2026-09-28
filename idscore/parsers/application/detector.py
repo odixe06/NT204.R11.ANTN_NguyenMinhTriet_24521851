@@ -100,21 +100,13 @@ class AppProtocolDetector(BaseParser):
 
         # nếu xảy ra exception -> hạ xuống malformed
         except Exception as exc:
-            self._malformed(event, f"cannot inspect the payload: {exc!r}")
+            self._partial(event, f"cannot inspect the payload: {exc!r}")
             return
 
         # phát hiện protocol -> ghi vào event
         event.app_protocol = protocol
         if method is not None:
             event.detection_method = method
-
-    # hàm kiểm tra nếu có packet TCP/UDP thì trả về layer tương ứng
-    # không có thì none
-    def _transport_layer(self, packet: Packet) -> Packet | None:
-        for layer_type in (TCP, UDP):
-            if packet.haslayer(layer_type):
-                return packet[layer_type]
-        return None
 
     def _transport_name(self, layer: Packet) -> str:
         return "TCP" if isinstance(layer, TCP) else "UDP"
@@ -199,21 +191,28 @@ class AppProtocolDetector(BaseParser):
 
     # kiểm tra phần header cố định của dns
     def _is_dns(self, payload: bytes) -> bool:
+
+        # DNS header cố định 12 byte -> nhỏ hơn return false
         if len(payload) < DNS_HEADER_LEN:
             return False
 
+        # kiểm tra số lượng question trong header QDCOUNT
         qdcount = int.from_bytes(
             payload[DNS_QDCOUNT_OFFSET:DNS_QDCOUNT_OFFSET + 2], "big"
         )
+        # chỉ chấp nhận DNS packet có 1 question
         if qdcount != DNS_QDCOUNT:
             return False
 
+        # kiểm tra opcode
         opcode = (payload[DNS_FLAGS_OFFSET] >> 3) & 0x0F
         if opcode not in DNS_OPCODES:
             return False
 
+        # các header đều hợp lệ -> kiểm tra QNAME, QTYPE, QCLASS
         return self._has_dns_question(payload)
 
+    # kiểm tra question trong payload có đủ cấu trúc
     def _has_dns_question(self, payload: bytes) -> bool:
         """Walk the first QNAME, then check qtype and qclass still fit.
 

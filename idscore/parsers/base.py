@@ -4,6 +4,7 @@
 
 from abc import ABC, abstractmethod
 
+from scapy.layers.inet import TCP, UDP
 from scapy.packet import NoPayload, Packet, Padding
 
 from idscore.models.event import Event
@@ -66,3 +67,20 @@ class BaseParser(ABC):
         """Length of ``_payload_bytes(layer)``."""
         return len(self._payload_bytes(layer))
     
+
+    def _transport_layer(self, packet: Packet) -> Packet | None:
+        """Return the TCP or UDP layer of ``packet``, ``None`` when it has neither."""
+        for layer_type in (TCP, UDP):
+            if packet.haslayer(layer_type):
+                return packet[layer_type]
+        return None
+
+    def _decode(self, data: bytes) -> str:
+        """Decode as UTF-8, marking undecodable bytes with U+FFFD instead of raising."""
+        return data.decode("utf-8", errors="replace")
+
+    def _partial(self, event: Event, message: str) -> None:
+        """Append a prefixed message to ``event.errors`` and drop OK to PARTIAL."""
+        event.errors.append(f"{self.name}: {message}")
+        if event.parse_status == "OK":
+            event.parse_status = "PARTIAL"
