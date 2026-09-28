@@ -230,10 +230,15 @@ ngoài; `cli:` là lỗi của chính chương trình khi xử lý hoặc ghi pa
 
 ## Mục đích khi sử dụng các công cụ AI
 
+#### Mục đích:
+
 - Thiết kế cấu trúc thư mục dự án
 - Kiểm tra syntax và logic của các đoạn code, cải thiện hoặc chỉnh sửa style code để tối ưu.
-- Công cụ: GitHub Copilot + Claude Code
-- File có hỗ trợ AI: `idscore/capture/base.py`, `idscore/capture/pcap.py`, `idscore/capture/live.py`, `idscore/cli.py`, `main.py`, `idscore/parsers/application/dns.py`, `TEST/tc12_malformed_packet/gen_malformed.py`, `idscore/pipeline.py`, `idscore/utils/logger.py`
+
+#### Công cụ: GitHub Copilot + Claude Code
+
+File có hỗ trợ AI: `idscore/capture/base.py`, `idscore/capture/pcap.py`, `idscore/capture/live.py`, `idscore/cli.py`, `main.py`, `idscore/parsers/application/dns.py`, `TEST/tc12_malformed_packet/gen_malformed.py`, `idscore/pipeline.py`, `idscore/utils/logger.py`
+
 ## Tài liệu liên quan sử dụng trong quá trình làm
 
 https://minhtriet0502-note.notion.site/PLAN-3e5730cee68d80f785edfd92cd5a1f54
