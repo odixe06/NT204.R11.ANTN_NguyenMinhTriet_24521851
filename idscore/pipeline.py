@@ -17,6 +17,7 @@ class Pipeline:
         network_parsers: Sequence[BaseParser],
         transport_parsers: Sequence[BaseParser],
     ) -> None:
+        # chuyển về dạng list các parser trong một tầng
         self.link_parsers = list(link_parsers)
         self.network_parsers = list(network_parsers)
         self.transport_parsers = list(transport_parsers)
