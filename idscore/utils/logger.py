@@ -24,7 +24,9 @@ def setup_logging(log_path: str, level: int = logging.INFO) -> logging.Logger:
     if logger.handlers:
         return logger
 
-    # đặt ngưỡng lọc cho logger
+    # đặt ngưỡng lọc cho logger: INFO, WARNING, ERROR
+
+    # info được ghi vô log
     logger.setLevel(level)
     # chuẩn hóa format cho dòng log
     formatter = logging.Formatter(LOG_FORMAT) 
@@ -36,7 +38,7 @@ def setup_logging(log_path: str, level: int = logging.INFO) -> logging.Logger:
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
-    # hiển thị lên màn hình bằng StreamHandler
+    # hiển thị lên màn hình bằng StreamHandler, chỉ hiển thị Warning và Error
     stream_handler = logging.StreamHandler(sys.stderr)
     stream_handler.setLevel(logging.WARNING)
     stream_handler.setFormatter(formatter)
