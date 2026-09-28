@@ -48,6 +48,7 @@ class Event:
     parse_status: str = "OK" # mặc định là OK
     # nếu không OK, check từng trường hợp -> gán giá trị tương ứng
     # lưu ý: mọi nhánh xử lý fail đều hạ trạng thái
+    
     errors: list[str] = field(default_factory=list)
     # errors là danh sách thông báo lỗi chi tiết trong một Event
     # khai báo default_factory=list để tạo ra một danh sách rỗng mặc định cho errors (mỗi event có list riêng)

@@ -45,6 +45,9 @@ class PcapCapture(BaseCapture):
                         f"in PCAP '{self._path}'"
                     )
 
+                # Pcap khi bắt gói tin có thể bị dừng đột ngột 
+                # -> có những byte thừa ở cuối -> k thể tạo ra gói tin hoàn chỉnh 
+                # phải lưu ý điều này vào log
                 expected_end = reader.f.tell()
 
                 for packet in reader:
@@ -53,7 +56,6 @@ class PcapCapture(BaseCapture):
                     # yield là generator, mỗi lần lặp sẽ trả về một tuple gồm packet và timestamp của packet đó
 
                 if link_layer is not None:
-                    # tính byte thừa sau vòng lặp
                     leftover = reader.f.tell() - expected_end
                     if leftover > 0:
                         logger.warning(
