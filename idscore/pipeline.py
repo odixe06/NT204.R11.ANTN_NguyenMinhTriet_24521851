@@ -1,8 +1,8 @@
 #pipeline tổng thể cho quá trình parser ghi thông tin các gói tin vào event
-# thứ tự các tầng: link -> network -> transport -> app detector -> app parser
+# thứ tự các tầng: parser link -> network -> transport -> app detector -> app parser
 
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, Literal
 
 from idscore.models.event import Event
 from idscore.parsers.base import BaseParser
@@ -62,7 +62,8 @@ class Pipeline:
             return event
 
         # chạy detector
-        self._run_layer(self.app_detectors, packet, event)
+        # nếu detector lỗi khi đọc payload application -> gán PARTIAL
+        self._run_layer(self.app_detectors, packet, event, "PARTIAL")
 
         # parser tầng ứng dụng chọn theo app_protocol mà detector vừa gán
         self._run_app_parser(packet, event)
@@ -71,13 +72,15 @@ class Pipeline:
 
     def _run_app_parser(self, packet: Any, event: Event) -> None:
         parser = self.app_parsers.get(event.app_protocol)
+        # nếu k có parser cho protocol đó thì bỏ qua 
         if parser is None:
             return
 
         try:
-            handled = parser.can_parse(packet)
+            # parser có xử lý được packer k
+            handled = parser.can_parse(packet) 
         except Exception as exc:
-            self._app_parser_raised(event, parser, "can_parse", exc)
+            self._parser_raised(event, parser, "can_parse", exc, "PARTIAL")
             return
 
         if not handled:
@@ -86,23 +89,22 @@ class Pipeline:
         try:
             parser.parse(packet, event)
         except Exception as exc:
-            self._app_parser_raised(event, parser, "parse", exc)
-
-    def _app_parser_raised(
-        self, event: Event, parser: BaseParser, method: str, exc: Exception
-    ) -> None:
-        event.errors.append(f"pipeline: {parser.name}.{method} raised {exc!r}")
-        if event.parse_status == "OK":
-            event.parse_status = "PARTIAL"
+            self._parser_raised(event, parser, "parse", exc, "PARTIAL")
 
     def _run_layer(
-        self, parsers: Sequence[BaseParser], packet: Any, event: Event
+        self,
+        parsers: Sequence[BaseParser],
+        packet: Any,
+        event: Event,
+        # nếu k có parser thì gán MALFORMED
+        on_error: Literal["MALFORMED", "PARTIAL"] = "MALFORMED",
     ) -> bool:
+        # thử từng parser trong một tầng
         for parser in parsers:
             try:
                 handled = parser.can_parse(packet)
             except Exception as exc:
-                self._parser_raised(event, parser, "can_parse", exc)
+                self._parser_raised(event, parser, "can_parse", exc, on_error)
                 continue
 
             if not handled:
@@ -111,17 +113,23 @@ class Pipeline:
             try:
                 parser.parse(packet, event)
             except Exception as exc:
-                self._parser_raised(event, parser, "parse", exc)
+                self._parser_raised(event, parser, "parse", exc, on_error)
             return True
 
         return False
 
     # định dạng lỗi: tên parser, tên hàm, nội dung exception, hạ xuống MALFORMED
     def _parser_raised(
-        self, event: Event, parser: BaseParser, method: str, exc: Exception
+        self,
+        event: Event,
+        parser: BaseParser,
+        method: str,
+        exc: Exception,
+        status: Literal["MALFORMED", "PARTIAL"] = "MALFORMED",
     ) -> None:
         event.errors.append(f"pipeline: {parser.name}.{method} raised {exc!r}")
-        event.parse_status = "MALFORMED"
+        if status == "MALFORMED" or event.parse_status == "OK":
+            event.parse_status = status
 
     # hàm hạ xuống unknown (chỉ hạ từ trạng thái OK)
     def _unknown(self, event: Event) -> None:

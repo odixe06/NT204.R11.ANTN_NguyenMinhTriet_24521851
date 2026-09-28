@@ -20,20 +20,20 @@ def setup_logging(log_path: str, level: int = logging.INFO) -> logging.Logger:
     logger = logging.getLogger(LOGGER_NAME)
     logger.propagate = False
 
-    # kiểm tra danh sách, tránh bị trùng lặp 
+    # kiểm tra danh sách logger xử lý 
     if logger.handlers:
         return logger
 
-    # đặt ngưỡng lọc cho logger: INFO, WARNING, ERROR
-
-    # info được ghi vô log
+    # đặt ngưỡng lọc cho logger: info được ghi lên log
     logger.setLevel(level)
+
     # chuẩn hóa format cho dòng log
     formatter = logging.Formatter(LOG_FORMAT) 
 
     path = Path(log_path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
+    # ghi vào file 
     file_handler = logging.FileHandler(path, mode="a", encoding="utf-8")
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)

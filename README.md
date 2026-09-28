@@ -59,3 +59,7 @@ Mỗi parser cần lấy các field sau:
        - command: verb, argument
        - response: status code, message
        - xử lý được nhiều dòng trong một segment, ví dụ chuỗi 250-...
+
+## Tài liệu liên quan sử dụng trong quá trình làm: 
+
+https://minhtriet0502-note.notion.site/PLAN-3e5730cee68d80f785edfd92cd5a1f54

@@ -219,3 +219,5 @@ __marimo__/
 
 logs/*
 !logs/.gitkeep
+
+try_pipeline.py
