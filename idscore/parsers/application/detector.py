@@ -42,6 +42,13 @@ SMTP_MIN_CODE = ord("2")
 SMTP_MAX_CODE = ord("5")
 CRLF = b"\r\n"
 
+DNS_HEADER_LEN = 12
+DNS_FLAGS_OFFSET = 2
+DNS_QDCOUNT_OFFSET = 4
+DNS_QUESTION_TAIL_LEN = 4
+DNS_LABEL_MAX = 63
+DNS_OPCODES = frozenset({0, 1, 2, 4, 5})
+
 
 class AppProtocolDetector(BaseParser):
     """Name the application protocol of a payload without looking at ports."""
@@ -68,7 +75,7 @@ class AppProtocolDetector(BaseParser):
             if layer is None:
                 return
             payload = self._payload_bytes(layer) # lấy byte thô của payload
-            protocol = self._detect(payload) # gọi hàm detect
+            protocol = self._detect(payload, self._transport_name(layer)) # gọi hàm detect
 
         # nếu xảy ra exception -> hạ xuống malformed
         except Exception as exc:
@@ -88,12 +95,19 @@ class AppProtocolDetector(BaseParser):
                 return packet[layer_type]
         return None
 
+    def _transport_name(self, layer: Packet) -> str:
+        return "TCP" if isinstance(layer, TCP) else "UDP"
+
     # hàm detect nhận diện theo thứ tự 
-    def _detect(self, payload: bytes) -> str | None:
-        if self._is_http(payload):
-            return "HTTP"
-        if self._is_smtp(payload):
-            return "SMTP"
+    def _detect(self, payload: bytes, transport: str) -> str | None:
+        if transport == "TCP":
+            if self._is_http(payload):
+                return "HTTP"
+            if self._is_smtp(payload):
+                return "SMTP"
+        elif transport == "UDP":
+            if self._is_dns(payload):
+                return "DNS"
         return None
 
     # kiểm tra http 
@@ -109,14 +123,19 @@ class AppProtocolDetector(BaseParser):
             first_line.startswith(method + b" ") for method in HTTP_METHODS
         ) and HTTP_VERSION in first_line
 
+    # tách và kiểm tra định dạng dòng đầu tiên
+    # đảm bảo dòng đầu tiên phải kết thúc bằng CRLF
     def _is_smtp(self, payload: bytes) -> bool:
-        line, separator, _ = payload.partition(CRLF)
-        if not separator or b"\n" in line:
+        line, separator, _ = payload.partition(CRLF) # tách thành line và separator
+        if not separator or b"\n" in line: # nếu separator rỗng hoặc có ký tự xuống dòng trước CRLF
             return False
-        return self._is_smtp_command(line) or self._is_smtp_response(line)
+        return self._is_smtp_command(line) or self._is_smtp_response(line) # xác định là SMTP nếu thỏa mãn 1 trong 2 hàm
 
+    # kiểm tra lệnh gửi đi
     def _is_smtp_command(self, line: bytes) -> bool:
         upper = line.upper()
+
+        # kiểm tra các từ khóa trong verb
         for verb in SMTP_VERBS:
             if not upper.startswith(verb):
                 continue
@@ -131,11 +150,53 @@ class AppProtocolDetector(BaseParser):
             return True
         return False
 
+    # kiểm tra mã phản hồi
     def _is_smtp_response(self, line: bytes) -> bool:
-        code = line[:SMTP_CODE_LEN]
+        # lấy 3 byte đầu của dòng
+        code = line[:SMTP_CODE_LEN] 
+
+        # kiểm tra 3 byte đều là chữ số
         if len(code) < SMTP_CODE_LEN or not code.isdigit():
             return False
+
+        # kiểm tra mã có nằm trong 200 - 599
         if not SMTP_MIN_CODE <= code[0] <= SMTP_MAX_CODE:
             return False
+
+        # kiểm tra phần phản hồi sau mã lệnh (là " " hoặc "-" cho trường hợp nhiều dòng)
         rest = line[SMTP_CODE_LEN:]
         return rest.startswith(b" ") or rest.startswith(b"-")
+
+
+    def _is_dns(self, payload: bytes) -> bool:
+        if len(payload) < DNS_HEADER_LEN:
+            return False
+
+        qdcount = int.from_bytes(
+            payload[DNS_QDCOUNT_OFFSET:DNS_QDCOUNT_OFFSET + 2], "big"
+        )
+        if qdcount < 1:
+            return False
+
+        opcode = (payload[DNS_FLAGS_OFFSET] >> 3) & 0x0F
+        if opcode not in DNS_OPCODES:
+            return False
+
+        return self._has_dns_question(payload)
+
+    def _has_dns_question(self, payload: bytes) -> bool:
+        """Walk the first QNAME, then check qtype and qclass still fit.
+
+        A length byte above ``DNS_LABEL_MAX`` is either a compression pointer
+        (top bits ``11``) or a reserved value; neither can open the first
+        question, so both end the walk with False.
+        """
+        offset = DNS_HEADER_LEN
+        while offset < len(payload):
+            length = payload[offset]
+            if length == 0:
+                return offset + 1 + DNS_QUESTION_TAIL_LEN <= len(payload)
+            if length > DNS_LABEL_MAX:
+                return False
+            offset += 1 + length
+        return False
