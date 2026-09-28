@@ -75,8 +75,3 @@ class IPv4Parser(BaseParser):
                 event,
                 f"ip_len {declared_len} exceeds the {len(raw)} bytes captured",
             )
-
-    def _malformed(self, event: Event, message: str) -> None:
-        event.errors.append(f"{self.name}: {message}")
-        event.parse_status = "MALFORMED"
-    # hàm hạ event xuống malformed và ghi message vào errors

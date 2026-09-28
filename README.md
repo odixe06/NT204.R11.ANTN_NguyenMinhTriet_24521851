@@ -41,3 +41,4 @@ conda activate btids
 ## Lưu ý khi làm:
 
 - Output live có packet ARP. Đây là packet không phải IPv4, pipeline ở phase 3 phải gán UNKNOWN cho loại này chứ không được crash khi tìm lớp IP.
+- TCP header là 1 cờ có 8 bit, tương ứng với thứ tự ["FIN", "SYN", "RST", "PSH", "ACK", "URG", "ECE", "CWR"], lưu ý để detect chính xác. 

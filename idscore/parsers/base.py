@@ -4,7 +4,7 @@
 
 from abc import ABC, abstractmethod
 
-from scapy.packet import Packet
+from scapy.packet import NoPayload, Packet, Padding
 
 from idscore.models.event import Event
 
@@ -12,7 +12,7 @@ from idscore.models.event import Event
 class BaseParser(ABC):
 # pipeline chỉ gọi parser qua interface này, thêm parser mới thì kế thừa  
     @property
-    @abstractmethod # nhãn này đánh dấu những thuộc tính/hàm bắt buộc có ở class con
+    @abstractmethod # đánh dấu thuộc tính/hàm bắt buộc có ở class con
     def name(self) -> str:
         """Parser identifier, e.g. ``ipv4`` or ``tcp``."""
         ...
@@ -34,6 +34,22 @@ class BaseParser(ABC):
         ``event.parse_status`` to ``MALFORMED`` without building a new ``Event``
         """
         ...
-   
-    # scapy đọc packet bị cắt cụt mà không báo lỗi
-    # parser báo exception thì cả chương trình dừng
+
+    # hàm hạ xuống MALFORMED và thông báo errors messages trong event
+    def _malformed(self, event: Event, message: str) -> None:
+        """Append a prefixed message to ``event.errors`` and drop to MALFORMED."""
+        event.errors.append(f"{self.name}: {message}")
+        event.parse_status = "MALFORMED"
+
+    def _payload_len(self, layer: Packet) -> int:
+        """Bytes carried above ``layer``, excluding any Ethernet ``Padding``."""
+        payload = layer.payload
+        if isinstance(payload, (NoPayload, Padding)):
+            return 0
+        length = len(bytes(payload))
+        padding = payload.getlayer(Padding)
+        if padding is not None:
+            length -= len(bytes(padding))
+        return length
+    # trừ phần Padding vì Ethernet đệm frame cho đủ 60 byte
+    # không trừ thì mọi gói ACK rỗng đều bị tính là có payload
