@@ -63,7 +63,7 @@ def build_pipeline() -> Pipeline:
         build_app_parsers(),
     )
 
-
+# nếu xử lý một packet thất bại -> vẫn ghi message trong json L và hán MALFORMED
 def _fallback_event(
     packet_id: int, timestamp: float, capture: BaseCapture, message: str
 ) -> Event:
@@ -76,7 +76,7 @@ def _fallback_event(
         errors=[message],
     )
 
-
+# xử lý khi pipeline gặp lỗi
 def _process_safely(
     pipeline: Pipeline,
     packet: object,
@@ -85,9 +85,11 @@ def _process_safely(
     capture: BaseCapture,
 ) -> Event:
     try:
+        # chạy bình thường
         return pipeline.process(
             packet, timestamp, packet_id, capture.source, capture.source_type
         )
+        # nếu parser hoặc pipeline phát sinh lỗi ghi log để debug, trả về event fallback
     except Exception as exc:
         logger.error("Packet %d could not be processed: %r", packet_id, exc)
         logger.info("Traceback of packet %d", packet_id, exc_info=True)
@@ -95,14 +97,16 @@ def _process_safely(
             packet_id, timestamp, capture, f"cli: pipeline.process raised {exc!r}"
         )
 
-
+# xử lý khi quá trình ghi file jsonl bị lỗi
 def _write_safely(
     writer: JsonlWriter, event: Event, packet_id: int, capture: BaseCapture
 ) -> None:
     try:
         writer.write(event)
-    except OSError:
+    # gặp OSError thì cho qua hàm main xử lý
+    except OSError: 
         raise
+    # nếu event k thể ghi được mà kp OS Error thì ghi log, traceback và event fallback
     except Exception as exc:
         logger.error("Packet %d could not be serialised: %r", packet_id, exc)
         logger.info("Traceback of packet %d", packet_id, exc_info=True)
