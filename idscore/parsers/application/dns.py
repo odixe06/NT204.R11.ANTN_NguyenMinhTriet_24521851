@@ -194,13 +194,17 @@ class DNSParser(BaseParser):
             return {"rdata": str(ipaddress.IPv6Address(payload[start:end]))}
 
         if record_type in NAME_TYPES:
-            name, _ = self._read_name(payload, start)
+            name, name_end = self._read_name(payload, start)
+            if name_end > end:
+                raise ValueError(f"name in rdata overruns rdlength at offset {start}")
             return {"rdata": name}
 
         if record_type == TYPE_MX:
             if rdlength < MX_PREFERENCE_LEN:
                 raise ValueError(f"MX record has rdlength {rdlength}, too short")
-            name, _ = self._read_name(payload, start + MX_PREFERENCE_LEN)
+            name, name_end = self._read_name(payload, start + MX_PREFERENCE_LEN)
+            if name_end > end:
+                raise ValueError(f"name in rdata overruns rdlength at offset {start}")
             return {
                 "preference": int.from_bytes(
                     payload[start:start + MX_PREFERENCE_LEN], "big"
