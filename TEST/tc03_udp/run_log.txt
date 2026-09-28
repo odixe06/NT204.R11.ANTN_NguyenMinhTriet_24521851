@@ -1,0 +1,2 @@
+2026-09-28 21:01:14,186 INFO idscore.cli: Reading from pcap 'TEST/tc03_udp/input.pcap', writing events to 'TEST/tc03_udp/events.jsonl'
+2026-09-28 21:01:14,188 INFO idscore.cli: Total packets: 1 (OK 1, PARTIAL 0, UNKNOWN 0, MALFORMED 0)
