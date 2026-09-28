@@ -1,0 +1,2 @@
+2026-09-28 22:02:57,587 INFO idscore.cli: Reading from pcap 'TEST/tc11_unknown_protocol/input.pcap', writing events to 'TEST/tc11_unknown_protocol/events.jsonl'
+2026-09-28 22:02:57,594 INFO idscore.cli: Total packets: 30 (OK 24, PARTIAL 0, UNKNOWN 6, MALFORMED 0)
