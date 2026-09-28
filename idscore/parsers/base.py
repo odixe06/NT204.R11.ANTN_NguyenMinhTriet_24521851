@@ -40,16 +40,28 @@ class BaseParser(ABC):
         """Append a prefixed message to ``event.errors`` and drop to MALFORMED."""
         event.errors.append(f"{self.name}: {message}")
         event.parse_status = "MALFORMED"
+    
+    # helper trả về byte thô trên layer transport
+    def _payload_bytes(self, layer: Packet) -> bytes:
+        """Raw bytes above ``layer`` with Ethernet ``Padding`` stripped, ``b""`` if none.
 
-    def _payload_len(self, layer: Packet) -> int:
-        """Bytes carried above ``layer``, excluding any Ethernet ``Padding``."""
+        Reads the bytes as captured, never the port-based layers scapy guesses
+        (UDP 53 becomes ``DNS``), so detection stays independent of port.
+        """
         payload = layer.payload
-        if isinstance(payload, (NoPayload, Padding)):
-            return 0
-        length = len(bytes(payload))
+        # TH rỗng 
+        if isinstance(payload, (NoPayload, Padding)): 
+            return b"" # k trả về None để detector dễ kiểm tra
+        raw = bytes(payload)
         padding = payload.getlayer(Padding)
         if padding is not None:
-            length -= len(bytes(padding))
-        return length
-    # trừ phần Padding vì Ethernet đệm frame cho đủ 60 byte
-    # không trừ thì mọi gói ACK rỗng đều bị tính là có payload
+            pad_len = len(bytes(padding))
+            if pad_len:
+                raw = raw[:-pad_len]
+        return raw
+
+    # lấy độ dài của đoạn payload_byte ở trên 
+    def _payload_len(self, layer: Packet) -> int:
+        """Length of ``_payload_bytes(layer)``."""
+        return len(self._payload_bytes(layer))
+    

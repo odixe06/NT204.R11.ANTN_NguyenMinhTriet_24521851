@@ -1,6 +1,6 @@
 # file này điều phối giữa cli và các module khác trong ids 
 
-import argparse
+import argparse # thư viện xử lý tham số cli
 import json
 import sys
 from collections.abc import Sequence
