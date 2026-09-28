@@ -8,6 +8,7 @@ from scapy.packet import Packet
 from idscore.models.event import Event
 from idscore.parsers.base import BaseParser
 
+IPV4_VERSION = 4
 IPV4_MIN_HEADER_LEN = 20
 ETH_TYPE_IPV4 = 0x0800
 
@@ -60,6 +61,13 @@ class IPv4Parser(BaseParser):
             return
 
         # các trường hợp bị hạ xuống MALFORMED:
+
+        if event.ip_version != IPV4_VERSION:
+            self._malformed(
+                event,
+                f"ip_version is {event.ip_version}, not {IPV4_VERSION}",
+            )
+            return
 
         # internet header length không hợp lệ: < 20 byte hoặc > captured
         if header_len < IPV4_MIN_HEADER_LEN or header_len > len(raw):
