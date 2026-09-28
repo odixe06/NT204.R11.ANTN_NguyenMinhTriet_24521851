@@ -63,7 +63,7 @@ UDP_PORTS = {
 
 class AppProtocolDetector(BaseParser):
     """Name the application protocol from the payload, falling back to the port."""
-    # payload là tín hiệu chính, port chỉ bù cho segment không còn dấu hiệu nào
+    # payload là tín hiệu chính, port fallback
     @property
     def name(self) -> str:
         return "app_detector"
@@ -171,6 +171,7 @@ class AppProtocolDetector(BaseParser):
             rest = upper[len(verb):]
             if rest and not rest.startswith(b" "):
                 continue
+            # kiểm tra đặc biết với các câu lệnh MAIL FROM và RCPT TO
             argument = rest.lstrip(b" ")
             if verb == b"MAIL":
                 return argument.startswith(b"FROM:")

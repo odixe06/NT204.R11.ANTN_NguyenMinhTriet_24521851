@@ -1,4 +1,5 @@
 #pipeline tổng thể cho quá trình parser ghi thông tin các gói tin vào event
+# thứ tự các tầng: link -> network -> transport -> app detector
 
 from collections.abc import Sequence
 from typing import Any
@@ -16,11 +17,13 @@ class Pipeline:
         link_parsers: Sequence[BaseParser],
         network_parsers: Sequence[BaseParser],
         transport_parsers: Sequence[BaseParser],
+        app_detectors: Sequence[BaseParser],
     ) -> None:
         # chuyển về dạng list các parser trong một tầng
         self.link_parsers = list(link_parsers)
         self.network_parsers = list(network_parsers)
         self.transport_parsers = list(transport_parsers)
+        self.app_detectors = list(app_detectors)
 
     # tạo event trước với các field trong metadata
     def process(
@@ -50,6 +53,9 @@ class Pipeline:
         # chạy parser tầng transport -> không xử lý được thì hạ xuống unknown
         if not self._run_layer(self.transport_parsers, packet, event):
             self._unknown(event)
+            return event
+
+        self._run_layer(self.app_detectors, packet, event)
 
         return event
 
