@@ -29,7 +29,7 @@ class UDPParser(BaseParser):
             ip = packet[IP]
             return int(ip.proto) == IP_PROTO_UDP and int(ip.frag) == 0
         except Exception:
-            return False
+            return False  
 
     def parse(self, packet: Packet, event: Event) -> None:
         """Fill the UDP fields in place, per the ``BaseParser.parse`` contract."""
@@ -52,7 +52,7 @@ class UDPParser(BaseParser):
             self._malformed(event, f"cannot read UDP header: {exc!r}")
             return
 
-        # TH len header gói tin bé hơn 8 
+        # TH tổng độ dài gói UDP trong khai báo < 8 
         if declared_len < UDP_HEADER_LEN:
             self._malformed(
                 event,

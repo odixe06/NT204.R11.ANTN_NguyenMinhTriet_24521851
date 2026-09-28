@@ -21,7 +21,7 @@ class TCPParser(BaseParser):
     def name(self) -> str:
         return "tcp" 
 
-    def can_parse(self, packet: Packet) -> bool: # kiểm tra header trong TCP layer
+    def can_parse(self, packet: Packet) -> bool: # kiểm tra gói tin có thuộc TCP k
         """Return True for a TCP layer, or an unfragmented IPv4 packet with proto 6."""
         try:
             # TH scapy bóc được layer TCP
@@ -30,8 +30,9 @@ class TCPParser(BaseParser):
             # TH gói tin k có tầng IP
             if not packet.haslayer(IP):
                 return False
-            # TH ip proto  = 6 (phần TCP bị cắt ngắn) hoặc gói IP bị phân mảnh (chỉ có gói đầu tiên có header)
+            # TH ip proto  = 6 (nhưng phần TCP bị cắt ngắn) 
             # -> scapy không dựng được layer TCP
+            # bỏ các mảnh IP k mang TCP header
             ip = packet[IP]
             return int(ip.proto) == IP_PROTO_TCP and int(ip.frag) == 0
         except Exception:
