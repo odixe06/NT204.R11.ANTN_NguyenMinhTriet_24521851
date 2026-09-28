@@ -35,7 +35,7 @@ conda activate btids
 - Thiết kế cấu trúc thư mục dự án
 - Kiểm tra syntax và logic của các đoạn code
 - Công cụ: GitHub Copilot + Claude Code
-- File có hỗ trợ AI: `idscore/capture/base.py`, `idscore/capture/pcap.py`, `idscore/capture/live.py`, `idscore/cli.py`, `main.py`
+- File có hỗ trợ AI: `idscore/capture/base.py`, `idscore/capture/pcap.py`, `idscore/capture/live.py`, `idscore/cli.py`, `main.py`, `idscore/parsers/application/dns.py`
 
 
 ## Lưu ý khi làm:
@@ -44,3 +44,18 @@ conda activate btids
 - TCP header là 1 cờ có 8 bit, tương ứng với thứ tự ["FIN", "SYN", "RST", "PSH", "ACK", "URG", "ECE", "CWR"], lưu ý để detect chính xác. 
 - Bài tập yêu cầu không được chỉ sử dụng port để xác định protocol => phải kiểm tra payload thô để xem nội dung payload thay vì dùng layer dựng sẵn của scapy.
 - Event không phụ thuộc Scapy vì Detector chỉ làm việc với event, còn parser sẽ tiếp xúc với scapy.
+
+#### Dict trong field app ghi những thông tin gì với các giao thức được hỗ trợ: 
+
+Mỗi parser cần lấy các field sau:
+
+- HTTP:
+       
+       - request: method, uri, version, headers, body length
+       - response: version, status code, reason, headers
+- DNS: transaction id, qr, opcode, rcode, question gồm qname, qtype, qclass, và answer gồm name, type, ttl, rdata
+- SMTP:
+
+       - command: verb, argument
+       - response: status code, message
+       - xử lý được nhiều dòng trong một segment, ví dụ chuỗi 250-...
