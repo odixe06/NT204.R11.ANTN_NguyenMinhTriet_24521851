@@ -1,6 +1,6 @@
 # file này định nghĩa interface chung cho mọi parser (network, transport, application)
 # định nghĩa một lớp trừu tượng BaseParser
-# code xử lý từng layer cụ thể nằm ở các file con, base.py chỉ giữ interface
+# code xử lý từng layer cụ thể nằm ở các file con
 
 from abc import ABC, abstractmethod
 
@@ -36,7 +36,7 @@ class BaseParser(ABC):
         """
         ...
 
-    # hàm hạ xuống MALFORMED và thông báo errors messages trong event
+    # helper hạ xuống MALFORMED và thông báo errors messages trong event
     def _malformed(self, event: Event, message: str) -> None:
         """Append a prefixed message to ``event.errors`` and drop to MALFORMED."""
         event.errors.append(f"{self.name}: {message}")
@@ -62,12 +62,12 @@ class BaseParser(ABC):
                 raw = raw[:-pad_len]
         return raw
 
-    # lấy độ dài của đoạn payload_byte ở trên 
+    # helper lấy độ dài của đoạn payload_byte ở trên 
     def _payload_len(self, layer: Packet) -> int:
         """Length of ``_payload_bytes(layer)``."""
         return len(self._payload_bytes(layer))
     
-
+    # helper tìm layer transport trong packet (TCP/UDP)
     def _transport_layer(self, packet: Packet) -> Packet | None:
         """Return the TCP or UDP layer of ``packet``, ``None`` when it has neither."""
         for layer_type in (TCP, UDP):
@@ -75,10 +75,12 @@ class BaseParser(ABC):
                 return packet[layer_type]
         return None
 
+    # helper chuyển dữ liệu từ bytes sang string bằng UTF-8
     def _decode(self, data: bytes) -> str:
         """Decode as UTF-8, marking undecodable bytes with U+FFFD instead of raising."""
         return data.decode("utf-8", errors="replace")
 
+    # helper hạ từ OK xuống PARTIAL khi parser đọc được một phần dữ liệu không hoàn chỉnh
     def _partial(self, event: Event, message: str) -> None:
         """Append a prefixed message to ``event.errors`` and drop OK to PARTIAL."""
         event.errors.append(f"{self.name}: {message}")
