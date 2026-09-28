@@ -1,7 +1,7 @@
 #pipeline tổng thể cho quá trình parser ghi thông tin các gói tin vào event
-# thứ tự các tầng: link -> network -> transport -> app detector
+# thứ tự các tầng: link -> network -> transport -> app detector -> app parser
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from idscore.models.event import Event
@@ -18,6 +18,7 @@ class Pipeline:
         network_parsers: Sequence[BaseParser],
         transport_parsers: Sequence[BaseParser],
         app_detectors: Sequence[BaseParser],
+        app_parsers: Mapping[str, BaseParser],
     ) -> None:
         # chuyển về dạng list các parser trong một tầng
         self.link_parsers = list(link_parsers)
@@ -26,6 +27,7 @@ class Pipeline:
 
         # sau khi parser xong thì tiến hành detect protocol
         self.app_detectors = list(app_detectors)
+        self.app_parsers = dict(app_parsers)
 
     # tạo event trước với các field trong metadata
     def process(
@@ -60,7 +62,23 @@ class Pipeline:
         # chạy detector
         self._run_layer(self.app_detectors, packet, event)
 
+        # parser tầng ứng dụng chọn theo app_protocol mà detector vừa gán
+        self._run_app_parser(packet, event)
+
         return event
+
+    def _run_app_parser(self, packet: Any, event: Event) -> None:
+        parser = self.app_parsers.get(event.app_protocol)
+        if parser is None:
+            return
+
+        try:
+            if parser.can_parse(packet):
+                parser.parse(packet, event)
+        except Exception as exc:
+            event.errors.append(f"pipeline: {parser.name} raised {exc!r}")
+            if event.parse_status == "OK":
+                event.parse_status = "PARTIAL"
 
     def _run_layer(
         self, parsers: Sequence[BaseParser], packet: Any, event: Event

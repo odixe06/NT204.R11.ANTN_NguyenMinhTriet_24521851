@@ -9,6 +9,7 @@ from idscore.capture.base import BaseCapture, CaptureError
 from idscore.capture.live import LiveCapture
 from idscore.capture.pcap import PcapCapture
 from idscore.parsers.application.detector import AppProtocolDetector
+from idscore.parsers.application.registry import build_app_parsers
 from idscore.parsers.link.ethernet import EthernetParser
 from idscore.parsers.network.ipv4 import IPv4Parser
 from idscore.parsers.transport.tcp import TCPParser
@@ -39,6 +40,7 @@ def build_pipeline() -> Pipeline:
 
         # sau đó chạy đến detector
         [AppProtocolDetector()],
+        build_app_parsers(),
     )
 
 
