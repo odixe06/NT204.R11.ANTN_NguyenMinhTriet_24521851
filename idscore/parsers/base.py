@@ -41,7 +41,7 @@ class BaseParser(ABC):
         event.errors.append(f"{self.name}: {message}")
         event.parse_status = "MALFORMED"
     
-    # helper trả về byte thô trên layer transport
+    # helper trả về byte thô ở phía layer transport (layer application)
     def _payload_bytes(self, layer: Packet) -> bytes:
         """Raw bytes above ``layer`` with Ethernet ``Padding`` stripped, ``b""`` if none.
 
@@ -53,6 +53,7 @@ class BaseParser(ABC):
         if isinstance(payload, (NoPayload, Padding)): 
             return b"" # k trả về None để detector dễ kiểm tra
         raw = bytes(payload)
+        # bỏ đi phần padding
         padding = payload.getlayer(Padding)
         if padding is not None:
             pad_len = len(bytes(padding))
