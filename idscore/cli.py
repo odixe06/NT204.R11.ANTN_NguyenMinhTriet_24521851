@@ -106,6 +106,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 logger.info("Capture stopped by the user")
     except CaptureError as error:
         logger.error("Capture error: %s", error)
+        logger.info("Total packets: %d", packet_count)
         return 1
     except OSError as error:
         logger.error("Output error: %s", error)
