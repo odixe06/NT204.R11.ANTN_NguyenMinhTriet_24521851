@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from idscore.capture.base import BaseCapture, CaptureError
 from idscore.capture.live import LiveCapture
 from idscore.capture.pcap import PcapCapture
+from idscore.config import ConfigError, load_config
 from idscore.models.event import PARSE_STATUSES, Event
 from idscore.output.jsonl_writer import JsonlWriter
 from idscore.parsers.application.detector import AppProtocolDetector
@@ -42,6 +43,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--log-file",
         default="logs/ids.log",
         help="File the runtime log is appended to.",
+    )
+    parser.add_argument(
+        "--config",
+        default="config/default.yaml",
+        help="YAML file overriding the default configuration.",
     )
     return parser.parse_args(argv)
 
@@ -137,6 +143,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     # khởi tạo log ngay từ đầu để module có thể ghi vào 
     setup_logging(args.log_file) 
+
+    try:
+        config = load_config(args.config)
+    except ConfigError as error:
+        logger.error("%s", error)
+        return 1
 
     # khởi tạo nguồn capture và gọi pipeline xử lý
     capture = build_capture(args)
