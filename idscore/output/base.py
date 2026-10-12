@@ -4,18 +4,20 @@
 
 from abc import ABC, abstractmethod
 from types import TracebackType
-from typing import Self
+from typing import Protocol, Self
 
-from idscore.models.event import Event
+
+class Record(Protocol):
+    def to_dict(self) -> dict: ...
 
 
 class BaseWriter(ABC):
-    """Destination an ``Event`` is written to, used by the CLI as a context manager."""
+    """Destination a ``Record`` is written to, used by the CLI as a context manager."""
 
-    # hàm nhận event và xử lý
+    # hàm nhận record (event, flow, ... bất kỳ object nào có to_dict) và xử lý
     @abstractmethod
-    def write(self, event: Event) -> None:
-        """Write one event; turning it into the output format is the writer's job."""
+    def write(self, record: Record) -> None:
+        """Write one record; turning it into the output format is the writer's job."""
         ...
 
     # hàm để đẩy dữ liệu trong buffer xuống đích hết -> đóng file an toàn

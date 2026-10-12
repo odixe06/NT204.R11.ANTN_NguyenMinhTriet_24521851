@@ -1,18 +1,17 @@
 # file này xây dựng class Jsonl writer, kế thừa BaseWriter 
-# ghi các đối tượng event vào file định dạng json lines (mỗi sự kiện 1 dòng)
+# ghi các record (event, flow, ...) vào file định dạng json lines (mỗi record 1 dòng)
 # ví dụ: {"packet_id":5,"src_ip":"10.0.0.1",...,"parse_status":"MALFORMED","errors":[...]}
 
 import json
 from pathlib import Path
 
-from idscore.models.event import Event
-from idscore.output.base import BaseWriter
+from idscore.output.base import BaseWriter, Record
 
 SEPARATORS = (",", ":")
 
 
 class JsonlWriter(BaseWriter):
-    """Append events to a JSON Lines file, one line per event, flushed in batches."""
+    """Append records to a JSON Lines file, one line per record, flushed in batches."""
 
     # khởi tạo và ghi các chuỗi json vào buffer trước khi lưu vào ổ cứng
     def __init__(self, path: str, batch_size: int = 100) -> None:
@@ -22,11 +21,11 @@ class JsonlWriter(BaseWriter):
         self._batch_size = batch_size
         self._buffer: list[str] = []
 
-    # chuyển event thành json rồi đưa vào buffer
-    def write(self, event: Event) -> None:
-        """Serialise ``event`` now and flush once the batch is full."""
+    # chuyển record thành json rồi đưa vào buffer
+    def write(self, record: Record) -> None:
+        """Serialise ``record`` now and flush once the batch is full."""
         line = json.dumps(
-            event.to_dict(), separators=SEPARATORS, default=self._default
+            record.to_dict(), separators=SEPARATORS, default=self._default
         )
         self._buffer.append(f"{line}\n")
 
@@ -52,7 +51,7 @@ class JsonlWriter(BaseWriter):
         self._file.close()
 
     @staticmethod
-    # hàm để chuyển định dạng lạ của event sang dạng có thể ghi vào json (hex, str)
+    # hàm để chuyển định dạng lạ của record sang dạng có thể ghi vào json (hex, str)
     def _default(obj: object) -> str:
         if isinstance(obj, (bytes, bytearray)):
             return obj.hex()
