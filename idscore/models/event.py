@@ -24,7 +24,11 @@ ACTION_PASS = "pass"
 ACTION_MARK = "mark"
 ACTION_DROP = "drop"
 PROCESSING_ACTIONS = (ACTION_PASS, ACTION_MARK, ACTION_DROP)
-FLOW_DIRECTIONS = ("forward", "backward")
+
+# các hằng số để dựng direction cho flow
+DIRECTION_FORWARD = "forward"
+DIRECTION_BACKWARD = "backward"
+FLOW_DIRECTIONS = (DIRECTION_FORWARD, DIRECTION_BACKWARD)
 
 
 @dataclass # decorator tự động tạo method cho các class lưu dữ liệu
