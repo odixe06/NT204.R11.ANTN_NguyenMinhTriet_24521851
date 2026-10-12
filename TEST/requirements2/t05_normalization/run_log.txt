@@ -1,0 +1,3 @@
+2026-10-12 21:34:39,912 INFO idscore.cli: Reading from pcap 'TEST/requirements2/t05_normalization/input.pcap', writing events to 'TEST/requirements2/t05_normalization/events.jsonl' and flows to 'TEST/requirements2/t05_normalization/flows.jsonl'
+2026-10-12 21:34:39,916 INFO idscore.cli: Total packets: 12 (OK 12, PARTIAL 0, UNKNOWN 0, MALFORMED 0)
+2026-10-12 21:34:39,916 INFO idscore.cli: Dropped events: 0, flows created: 2, flows timed out: 0
