@@ -3,6 +3,10 @@
 from dataclasses import asdict, dataclass, field
 
 PARSE_STATUSES = ("OK", "PARTIAL", "UNKNOWN", "MALFORMED")
+DECODE_STATUSES = ("ok", "partial", "failed")
+PREPROCESS_STATUSES = ("valid", "partial", "invalid")
+PROCESSING_ACTIONS = ("pass", "mark", "drop")
+FLOW_DIRECTIONS = ("forward", "backward")
 
 
 @dataclass # decorator tự động tạo method cho các class lưu dữ liệu
@@ -52,6 +56,21 @@ class Event:
     errors: list[str] = field(default_factory=list)
     # errors là danh sách thông báo lỗi chi tiết trong một Event
     # khai báo default_factory=list để tạo ra một danh sách rỗng mặc định cho errors (mỗi event có list riêng)
+
+
+    # nhóm decoded:
+    uri_decoded: str | None = None # uri sau khi url decode
+    body_decoded: str | None = None 
+    decode_status: str | None = None # trạng thái decode của event (ok, partial, filed, null)
+
+    # nhóm field preprocess 
+    preprocess_status: str | None = None # valid, partial, invalid
+    processing_action: str | None = None # pass, mark hoặc drop
+    reason: list[str] = field(default_factory=list) # list lí do, mặc định []
+
+    # nhóm field flow
+    flow_id: str | None = None # id của flow
+    direction: str | None = None # forward/backward
 
 
     def to_dict(self) -> dict:
