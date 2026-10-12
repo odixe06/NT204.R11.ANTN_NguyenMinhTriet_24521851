@@ -1,0 +1,3 @@
+2026-10-12 21:21:54,767 INFO idscore.cli: Reading from pcap 'TEST/requirements2/t03_smtp_mime/input.pcap', writing events to 'TEST/requirements2/t03_smtp_mime/events.jsonl' and flows to 'TEST/requirements2/t03_smtp_mime/flows.jsonl'
+2026-10-12 21:21:54,778 INFO idscore.cli: Total packets: 32 (OK 32, PARTIAL 0, UNKNOWN 0, MALFORMED 0)
+2026-10-12 21:21:54,778 INFO idscore.cli: Dropped events: 0, flows created: 1, flows timed out: 0
