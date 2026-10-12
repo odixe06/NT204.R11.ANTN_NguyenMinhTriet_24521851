@@ -1,0 +1,26 @@
+[1] HTTP request, không có headers và body
+    app              : {"message_type": "request", "method": "GET", "uri": "/", "headers": {}}
+    errors / reason  : [] / []
+    preprocess_status: valid | action: pass
+    flow_id          : 02644f1e2a82e302
+[2] HTTP response, headers là None
+    app              : {"message_type": "response", "status_code": 200, "headers": {}}
+    errors / reason  : [] / []
+    preprocess_status: valid | action: pass
+    flow_id          : 02644f1e2a82e302
+[3] DNS, answers là None
+    app              : {"questions": [{"name": "a.com", "qtype": 1}], "answers": []}
+    errors / reason  : [] / []
+    preprocess_status: valid | action: pass
+    flow_id          : a8bc0da4b7336ad7
+[4] SMTP command, không có commands
+    app              : {"message_type": "command", "commands": []}
+    errors / reason  : [] / []
+    preprocess_status: valid | action: pass
+    flow_id          : db07fcc89129925c
+[5] UDP, không có app
+    app              : null
+    errors / reason  : [] / []
+    preprocess_status: valid | action: pass
+    flow_id          : 9a21bb48d4e4a3a7
+flows: 4
