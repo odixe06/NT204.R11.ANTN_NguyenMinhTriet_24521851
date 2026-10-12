@@ -1,0 +1,7 @@
+2026-10-12 21:08:55,141 INFO idscore.cli: Reading from pcap 'TEST/requirements2/t02_html_entity/input.pcap', writing events to 'TEST/requirements2/t02_html_entity/events.jsonl' and flows to 'TEST/requirements2/t02_html_entity/flows.jsonl'
+2026-10-12 21:08:55,141 ERROR idscore.cli: Capture error: Unable to read PCAP 'TEST/requirements2/t02_html_entity/input.pcap': [Errno 2] No such file or directory: 'TEST/requirements2/t02_html_entity/input.pcap'
+2026-10-12 21:08:55,141 INFO idscore.cli: Total packets: 0 (OK 0, PARTIAL 0, UNKNOWN 0, MALFORMED 0)
+2026-10-12 21:08:55,141 INFO idscore.cli: Dropped events: 0, flows created: 0, flows timed out: 0
+2026-10-12 21:11:16,149 INFO idscore.cli: Reading from pcap 'TEST/requirements2/t02_html_entity/input.pcap', writing events to 'TEST/requirements2/t02_html_entity/events.jsonl' and flows to 'TEST/requirements2/t02_html_entity/flows.jsonl'
+2026-10-12 21:11:16,152 INFO idscore.cli: Total packets: 10 (OK 10, PARTIAL 0, UNKNOWN 0, MALFORMED 0)
+2026-10-12 21:11:16,152 INFO idscore.cli: Dropped events: 0, flows created: 1, flows timed out: 0
