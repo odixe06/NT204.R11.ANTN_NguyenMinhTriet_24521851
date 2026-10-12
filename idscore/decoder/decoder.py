@@ -3,6 +3,7 @@
 
 import logging
 
+from idscore.decoder.http import decode_uri
 from idscore.models.event import (
     DECODE_FAILED,
     DECODE_OK,
@@ -33,6 +34,10 @@ class Decoder:
 
     # decode cho body của http
     def _decode_http(self, event: Event) -> None:
+        uri = event.app.get("uri")
+        if uri:
+            event.uri_decoded, status = decode_uri(uri)
+            event.decode_status = self._merge_status(event.decode_status, status)
         self._merge_text_status(
             event, event.app.get("body"), event.app.get("body_text_status")
         )
