@@ -6,7 +6,8 @@ from abc import ABC, abstractmethod
 from types import TracebackType
 from typing import Protocol, Self
 
-
+# class chuyển record với hàm to dict
+# record là event/flow
 class Record(Protocol):
     def to_dict(self) -> dict: ...
 

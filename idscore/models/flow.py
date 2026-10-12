@@ -2,6 +2,8 @@
 
 from dataclasses import asdict, dataclass
 
+from idscore.flow.smtp import SMTP_STATE_COMMAND
+
 # các trạng thái của flow
 STATE_NEW = "NEW"
 STATE_HANDSHAKE = "HANDSHAKE"
@@ -72,6 +74,8 @@ class Flow:
     # thấy cờ fin chưa
     _fin_fwd: bool = False
     _fin_bwd: bool = False
+    _smtp_state: str = SMTP_STATE_COMMAND
+    _smtp_client_dir: str | None = None
 
     # chuyển 1 object flow thành dict để ghi ra file jsonl
     # tương tự event

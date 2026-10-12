@@ -5,6 +5,7 @@ import math
 from typing import Any
 
 from idscore.flow.key import FlowKey, make_flow_id, make_flow_key
+from idscore.flow.smtp import SMTP_PROTOCOL, update_smtp_session
 from idscore.models.event import (
     ACTION_DROP,
     DIRECTION_BACKWARD,
@@ -135,6 +136,8 @@ class FlowTracker:
         self._update_stats(flow, event, direction, flags)
         if is_tcp:
             self._update_tcp_state(flow, flags, direction)
+            if flow.application_protocol == SMTP_PROTOCOL:
+                update_smtp_session(flow, event, direction)
         event.flow_id = flow.flow_id
         event.direction = direction
 
