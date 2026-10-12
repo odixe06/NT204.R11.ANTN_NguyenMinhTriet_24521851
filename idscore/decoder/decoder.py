@@ -3,7 +3,13 @@
 
 import logging
 
-from idscore.decoder.http import decode_form, decode_uri, is_form_urlencoded
+from idscore.decoder.http import (
+    decode_form,
+    decode_html,
+    decode_uri,
+    is_form_urlencoded,
+    is_html,
+)
 from idscore.decoder.status import merge_status
 from idscore.models.event import DECODE_FAILED, Event
 
@@ -40,9 +46,20 @@ class Decoder:
 
         body = event.app.get("body")
         headers = event.app.get("headers") or {}
-        if body and is_form_urlencoded(headers.get("content-type")):
+        content_type = headers.get("content-type")
+        # nếu body rỗng 
+        if not body:
+            return
+
+        # chia làm 3 TH:
+        # decode_form, decode html, còn lại thì return 
+        if is_form_urlencoded(content_type):
             event.body_decoded, status = decode_form(body)
-            event.decode_status = merge_status(event.decode_status, status)
+        elif is_html(content_type):
+            event.body_decoded, status = decode_html(body)
+        else:
+            return
+        event.decode_status = merge_status(event.decode_status, status)
 
     # decode cho body của smtp
     def _decode_smtp(self, event: Event) -> None:

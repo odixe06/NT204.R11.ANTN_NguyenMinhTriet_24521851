@@ -1,12 +1,16 @@
 # định nghĩa cách decode các thành phần trong dict của field app với http
 
+from html import unescape
 from urllib.parse import unquote_to_bytes
 
 from idscore.decoder.status import merge_status
+from idscore.models.event import DECODE_OK, DECODE_PARTIAL
 from idscore.utils.text import decode_text
 
 QUERY_SEPARATOR = "?"
 FORM_CONTENT_TYPE = "application/x-www-form-urlencoded"
+HTML_CONTENT_TYPES = frozenset({"text/html", "application/xhtml+xml"})
+REPLACEMENT_CHAR = "\ufffd"
 
 # decode uri: input là str uri chưa decode
 # output -> uri đã decode - decode status
@@ -24,16 +28,29 @@ def decode_uri(uri: str) -> tuple[str, str]:
 def decode_form(body: str) -> tuple[str, str]:
     return _decode_form_urlencoded(body)
 
+def decode_html(text: str) -> tuple[str, str]:
+    decoded = unescape(text)
+    if decoded.count(REPLACEMENT_CHAR) > text.count(REPLACEMENT_CHAR):
+        return decoded, DECODE_PARTIAL
+    return decoded, DECODE_OK
+
+
 # kiểm tra có nên decode body không
 def is_form_urlencoded(content_type: str | None) -> bool:
-    # None hoặc chuỗi rỗng thì trả False
+    return _media_type(content_type) == FORM_CONTENT_TYPE
+
+
+def is_html(content_type: str | None) -> bool:
+    return _media_type(content_type) in HTML_CONTENT_TYPES
+
+
+def _media_type(content_type: str | None) -> str | None:
+    # None hoặc chuỗi rỗng thì trả None
     if not content_type:
-        return False
+        return None
 
     # Lấy phần trước ;, bỏ khoảng trắng, chuyển chữ thường
-    # so sánh với FORM_CONTENT_TYPE 
-    media_type = content_type.partition(";")[0].strip().lower()
-    return media_type == FORM_CONTENT_TYPE
+    return content_type.partition(";")[0].strip().lower()
 
 
 def _decode_form_urlencoded(text: str) -> tuple[str, str]:
