@@ -1,0 +1,4 @@
+# config cho T14: loại bỏ event invalid và unsupported
+preprocess:
+  invalid_policy: drop
+  unsupported_policy: drop

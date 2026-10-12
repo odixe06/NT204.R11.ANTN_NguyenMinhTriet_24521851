@@ -1,0 +1,3 @@
+2026-10-12 22:16:50,414 INFO idscore.cli: Reading from pcap 'TEST/requirements2/t14_malformed_event/input.pcap', writing events to 'TEST/requirements2/t14_malformed_event/events.jsonl' and flows to 'TEST/requirements2/t14_malformed_event/flows.jsonl'
+2026-10-12 22:16:50,419 INFO idscore.cli: Total packets: 5 (OK 1, PARTIAL 0, UNKNOWN 2, MALFORMED 2)
+2026-10-12 22:16:50,419 INFO idscore.cli: Dropped events: 0, flows created: 1, flows timed out: 0
