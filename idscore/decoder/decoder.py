@@ -1,4 +1,5 @@
 # file điều phối thành phần decoder, đứng sau parser
+# tất cả những phần được đến decoder đều từ field app của event
 
 import logging
 
@@ -32,11 +33,18 @@ class Decoder:
 
     # decode cho body của http
     def _decode_http(self, event: Event) -> None:
-        pass
+        self._merge_text_status(event, event.app.get("body_text_status"))
 
     # decode cho body của smtp
     def _decode_smtp(self, event: Event) -> None:
-        pass
+        self._merge_text_status(event, event.app.get("payload_text_status"))
+
+    # hàm gộp status
+    # event k có phần nào được decode -> None
+    # 
+    def _merge_text_status(self, event: Event, status: str | None) -> None:
+        if status is not None:
+            event.decode_status = self._merge_status(event.decode_status, status)
 
     @staticmethod
     def _merge_status(current: str | None, new: str) -> str:

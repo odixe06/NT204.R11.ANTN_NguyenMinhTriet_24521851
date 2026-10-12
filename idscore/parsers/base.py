@@ -75,7 +75,7 @@ class BaseParser(ABC):
                 return packet[layer_type]
         return None
 
-    # helper chuyển dữ liệu từ bytes sang string bằng UTF-8
+    # helper chuyển dữ liệu từ bytes sang string với chuẩn UTF-8
     def _decode(self, data: bytes) -> str:
         """Decode as UTF-8, marking undecodable bytes with U+FFFD instead of raising."""
         return data.decode("utf-8", errors="replace")

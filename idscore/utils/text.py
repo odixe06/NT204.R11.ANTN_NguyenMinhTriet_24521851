@@ -1,4 +1,5 @@
-# helper dùng để decode
+# helper dùng để chuyển từ byte -> string với UTF 8 
+# helper này dùng cho parser để ghi vào các dict trong field app của event
 
 import codecs
 
