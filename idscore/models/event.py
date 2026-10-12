@@ -76,6 +76,7 @@ class Event:
     uri_decoded: str | None = None # uri sau khi url decode
     body_decoded: str | None = None # nội dung body sau decode
     decode_status: str | None = None # trạng thái decode của event (ok, partial, filed, null)
+    uri_normalized: str | None = None # uri sau khi được chuẩn hóa
 
     # nhóm field preprocess: được thành phần preprocessor ghi vào
     preprocess_status: str | None = None # valid, partial, invalid

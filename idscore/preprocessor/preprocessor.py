@@ -10,6 +10,14 @@ from idscore.models.event import (
     PREPROCESS_VALID,
     Event,
 )
+from idscore.preprocessor.normalize import (
+    normalize_dns_names,
+    normalize_headers,
+    normalize_ip,
+    normalize_protocol,
+    normalize_timestamp,
+    normalize_uri_path,
+)
 
 # khởi tạo log
 logger = logging.getLogger(__name__)
@@ -50,8 +58,24 @@ class Preprocessor:
                 event, PREPROCESS_PARTIAL, f"preprocessor raised {exc!r}"
             )
 
+    # lần lượt gọi các hàm để chuẩn hóa các giá trị trong event
     def _normalize(self, event: Event) -> None:
-        pass
+        event.transport_protocol = normalize_protocol(event.transport_protocol)
+        event.app_protocol = normalize_protocol(event.app_protocol)
+        event.src_ip = normalize_ip(event.src_ip)
+        event.dst_ip = normalize_ip(event.dst_ip)
+        event.timestamp = normalize_timestamp(event.timestamp)
+
+        if not isinstance(event.app, dict):
+            return
+
+        if "headers" in event.app:
+            event.app["headers"] = normalize_headers(event.app["headers"])
+        normalize_dns_names(event.app)
+
+        uri = event.uri_decoded or event.app.get("uri")
+        if isinstance(uri, str) and uri:
+            event.uri_normalized = normalize_uri_path(uri)
 
     def _validate(self, event: Event) -> None:
         pass
