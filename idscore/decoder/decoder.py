@@ -33,17 +33,23 @@ class Decoder:
 
     # decode cho body của http
     def _decode_http(self, event: Event) -> None:
-        self._merge_text_status(event, event.app.get("body_text_status"))
+        self._merge_text_status(
+            event, event.app.get("body"), event.app.get("body_text_status")
+        )
 
     # decode cho body của smtp
     def _decode_smtp(self, event: Event) -> None:
-        self._merge_text_status(event, event.app.get("payload_text_status"))
+        self._merge_text_status(
+            event, event.app.get("payload_text"), event.app.get("payload_text_status")
+        )
 
     # hàm gộp status
     # event k có phần nào được decode -> None
-    # 
-    def _merge_text_status(self, event: Event, status: str | None) -> None:
-        if status is not None:
+    # có 1 thành phần k decode được -> partial 
+    def _merge_text_status(
+        self, event: Event, text: str | None, status: str | None
+    ) -> None:
+        if text and status is not None:
             event.decode_status = self._merge_status(event.decode_status, status)
 
     @staticmethod
