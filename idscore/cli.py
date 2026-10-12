@@ -283,9 +283,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     for flow in finished_flows:
                         _write_flow_safely(flow_writer, flow)
 
-                    # giữ nguyên invalid và drop nếu preprocessor đã gán trước khi raise
-                    if event.processing_action == ACTION_DROP:
+                    # event bị drop thì chỉ đếm, không ghi ra file
                     # action drop thì k cần write
+                    if event.processing_action == ACTION_DROP:
                         dropped_count += 1
                         counts[event.parse_status] += 1
                     else:
