@@ -1,0 +1,1 @@
+{"flow_id":"87a6782bbc9f2fcb","protocol":"UDP","application_protocol":"DNS","a_ip":"172.18.124.92","a_port":43387,"b_ip":"8.8.8.8","b_port":53,"start_time":1791816986.157162,"last_seen":1791816986.200029,"duration":0.042867,"packet_count":2,"byte_count":180,"fwd_packet_count":1,"fwd_byte_count":80,"bwd_packet_count":1,"bwd_byte_count":100,"end_reason":"end_of_capture"}
