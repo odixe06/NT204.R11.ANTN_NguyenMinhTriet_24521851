@@ -1,0 +1,3 @@
+2026-10-12 21:48:59,098 INFO idscore.cli: Reading from pcap 'TEST/requirements2/t08_bidirectional_flow/input.pcap', writing events to 'TEST/requirements2/t08_bidirectional_flow/events.jsonl' and flows to 'TEST/requirements2/t08_bidirectional_flow/flows.jsonl'
+2026-10-12 21:48:59,102 INFO idscore.cli: Total packets: 12 (OK 12, PARTIAL 0, UNKNOWN 0, MALFORMED 0)
+2026-10-12 21:48:59,102 INFO idscore.cli: Dropped events: 0, flows created: 1, flows timed out: 0
