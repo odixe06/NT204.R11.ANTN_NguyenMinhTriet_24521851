@@ -1,6 +1,5 @@
 # hàm merge status decode
-# gộp các trạng thái của tất cả các thành phần được decode
-
+# gộp các trạng thái text khi có text rỗng
 from idscore.models.event import DECODE_FAILED, DECODE_OK, DECODE_PARTIAL
 
 SEVERITY = {DECODE_OK: 0, DECODE_PARTIAL: 1, DECODE_FAILED: 2}

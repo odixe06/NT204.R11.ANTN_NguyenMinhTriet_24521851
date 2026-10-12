@@ -8,8 +8,18 @@ DECODE_OK = "ok"
 DECODE_PARTIAL = "partial"
 DECODE_FAILED = "failed"
 DECODE_STATUSES = (DECODE_OK, DECODE_PARTIAL, DECODE_FAILED)
-PREPROCESS_STATUSES = ("valid", "partial", "invalid")
-PROCESSING_ACTIONS = ("pass", "mark", "drop")
+
+# các trạng thái preprocess
+PREPROCESS_VALID = "valid"
+PREPROCESS_PARTIAL = "partial"
+PREPROCESS_INVALID = "invalid"
+PREPROCESS_STATUSES = (PREPROCESS_VALID, PREPROCESS_PARTIAL, PREPROCESS_INVALID)
+
+# preprocessor gán 
+ACTION_PASS = "pass"
+ACTION_MARK = "mark"
+ACTION_DROP = "drop"
+PROCESSING_ACTIONS = (ACTION_PASS, ACTION_MARK, ACTION_DROP)
 FLOW_DIRECTIONS = ("forward", "backward")
 
 
