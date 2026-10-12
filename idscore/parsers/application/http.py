@@ -5,6 +5,7 @@
 from scapy.layers.inet import TCP
 from scapy.packet import Packet
 
+from idscore.config import DEFAULTS
 from idscore.models.event import Event
 from idscore.parsers.base import BaseParser
 
@@ -21,6 +22,12 @@ STATUS_CODE_LEN = 3 # mã trạng thái
 
 class HTTPParser(BaseParser):
     """Application parser writing the HTTP fields of a segment into ``event.app``."""
+
+    def __init__(
+        # lưu kích thước tối đa của body
+        self, max_body_bytes: int = DEFAULTS["parser"]["max_body_bytes"]
+    ) -> None:
+        self.max_body_bytes = max_body_bytes
 
     @property
     # tên để ghi error messages

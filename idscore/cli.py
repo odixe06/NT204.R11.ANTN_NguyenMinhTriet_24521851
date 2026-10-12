@@ -5,6 +5,7 @@ import logging
 import sys
 from collections import Counter
 from collections.abc import Sequence
+from typing import Any
 
 from idscore.capture.base import BaseCapture, CaptureError
 from idscore.capture.live import LiveCapture
@@ -58,8 +59,9 @@ def build_capture(args: argparse.Namespace) -> BaseCapture:
     return PcapCapture(args.pcap)
 
 
-# chọn parser cho từng tầng, Pipeline không cần biết đang có những parser nào
-def build_pipeline() -> Pipeline:
+# chọn parser cho từng tầng
+# Pipeline không cần biết đang có những parser nào
+def build_pipeline(config: dict[str, Any]) -> Pipeline:
     return Pipeline(
         [EthernetParser(), UndecodedFrameParser()],
         [IPv4Parser()],
@@ -67,10 +69,11 @@ def build_pipeline() -> Pipeline:
 
         # sau đó chạy đến detector
         [AppProtocolDetector()],
-        build_app_parsers(),
+        # pipeline nhận config và truyền xuống app parser 
+        build_app_parsers(config),
     )
 
-# nếu xử lý một packet thất bại -> vẫn ghi message trong json L và hán MALFORMED
+# nếu xử lý một packet thất bại -> vẫn ghi message trong json L và gán MALFORMED
 def _fallback_event(
     packet_id: int, timestamp: float, capture: BaseCapture, message: str
 ) -> Event:
@@ -152,7 +155,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # khởi tạo nguồn capture và gọi pipeline xử lý
     capture = build_capture(args)
-    pipeline = build_pipeline()
+    pipeline = build_pipeline(config)
     packet_count = 0 # bộ đếm
     counts: Counter = Counter()
     exit_code = 0

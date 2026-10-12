@@ -4,6 +4,7 @@
 from scapy.layers.inet import TCP
 from scapy.packet import Packet
 
+from idscore.config import DEFAULTS
 from idscore.models.event import Event
 from idscore.parsers.application.detector import (
     SMTP_CODE_LEN,
@@ -21,6 +22,12 @@ CONTINUATION_MARK = "-"
 
 class SMTPParser(BaseParser):
     """Application parser writing the SMTP fields of a segment into ``event.app``."""
+
+    def __init__(
+        # lưu kích thước tối đa của body
+        self, max_body_bytes: int = DEFAULTS["parser"]["max_body_bytes"]
+    ) -> None:
+        self.max_body_bytes = max_body_bytes
 
     @property
     def name(self) -> str:
