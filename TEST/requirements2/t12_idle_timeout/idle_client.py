@@ -22,7 +22,7 @@ udp_from(50001, count=2)
 tcp = socket.create_connection(("127.0.0.1", 8000))
 print("t=0  sent UDP A x2 from 50001, opened TCP B")
 
-# t = 4: flow C là UDP 50002, đẩy clock lên 4 giây
+# t = 4: flow C là UDP 50002, đẩy clock lên 4 giây 
 time.sleep(4)
 udp_from(50002)
 print("t=4  sent UDP C from 50002")
