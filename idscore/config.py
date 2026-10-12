@@ -9,7 +9,9 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-POLICIES = ("keep", "drop")
+POLICY_KEEP = "keep"
+POLICY_DROP = "drop"
+POLICIES = (POLICY_KEEP, POLICY_DROP)
 
 # giá trị mặc định nếu thiếu key/không có file yaml
 DEFAULTS: dict[str, Any] = {
@@ -21,8 +23,8 @@ DEFAULTS: dict[str, Any] = {
         "udp_idle_timeout": 30,
     },
     "preprocess": {
-        "invalid_policy": "keep",
-        "unsupported_policy": "keep",
+        "invalid_policy": POLICY_KEEP,
+        "unsupported_policy": POLICY_KEEP,
     },
 }
 
@@ -48,12 +50,14 @@ def _is_policy(value: Any) -> bool:
     return isinstance(value, str) and value in POLICIES
 
 
+POLICY_EXPECTED = f"'{POLICY_KEEP}' or '{POLICY_DROP}'"
+
 VALIDATORS: dict[str, tuple[Callable[[Any], bool], str]] = {
     "parser.max_body_bytes": (_is_positive_int, "an integer greater than 0"),
     "flow.tcp_idle_timeout": (_is_positive_number, "a number greater than 0"),
     "flow.udp_idle_timeout": (_is_positive_number, "a number greater than 0"),
-    "preprocess.invalid_policy": (_is_policy, "'keep' or 'drop'"),
-    "preprocess.unsupported_policy": (_is_policy, "'keep' or 'drop'"),
+    "preprocess.invalid_policy": (_is_policy, POLICY_EXPECTED),
+    "preprocess.unsupported_policy": (_is_policy, POLICY_EXPECTED),
 }
 
 

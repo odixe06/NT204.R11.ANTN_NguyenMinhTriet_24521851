@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from idscore.models.event import (
+    ACTION_MARK,
     ACTION_PASS,
     PREPROCESS_INVALID,
     PREPROCESS_PARTIAL,
@@ -19,6 +20,7 @@ from idscore.preprocessor.normalize import (
     normalize_timestamp,
     normalize_uri_path,
 )
+from idscore.preprocessor.policy import decide_action
 from idscore.preprocessor.validate import check_supported, validate_event
 
 # khởi tạo log
@@ -61,6 +63,7 @@ class Preprocessor:
             )
             logger.info("Traceback of packet %d", event.packet_id, exc_info=True)
             event.errors.append(f"preprocessor: process raised {exc!r}")
+            event.processing_action = ACTION_MARK
             self._downgrade(
                 event, PREPROCESS_PARTIAL, f"preprocessor raised {exc!r}"
             )
@@ -91,7 +94,15 @@ class Preprocessor:
             self._downgrade(event, status, reason)
 
     def _apply_policy(self, event: Event, unsupported: str | None) -> None:
-        pass
+        action, reason = decide_action(
+            event.preprocess_status,
+            unsupported,
+            self.invalid_policy,
+            self.unsupported_policy,
+        )
+        event.processing_action = action
+        if reason:
+            event.reason.append(reason)
 
     @staticmethod
     # hạ status của preprocessor
