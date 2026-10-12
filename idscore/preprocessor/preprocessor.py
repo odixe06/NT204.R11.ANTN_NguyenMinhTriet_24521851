@@ -18,6 +18,7 @@ from idscore.preprocessor.normalize import (
     normalize_timestamp,
     normalize_uri_path,
 )
+from idscore.preprocessor.validate import validate_event
 
 # khởi tạo log
 logger = logging.getLogger(__name__)
@@ -59,6 +60,7 @@ class Preprocessor:
             )
 
     # lần lượt gọi các hàm để chuẩn hóa các giá trị trong event
+    # ghi đè vào field 
     def _normalize(self, event: Event) -> None:
         event.transport_protocol = normalize_protocol(event.transport_protocol)
         event.app_protocol = normalize_protocol(event.app_protocol)
@@ -78,7 +80,8 @@ class Preprocessor:
             event.uri_normalized = normalize_uri_path(uri)
 
     def _validate(self, event: Event) -> None:
-        pass
+        for status, reason in validate_event(event):
+            self._downgrade(event, status, reason)
 
     def _apply_policy(self, event: Event) -> None:
         pass
