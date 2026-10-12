@@ -12,11 +12,13 @@ from idscore.models.event import (
     Event,
 )
 from idscore.models.flow import STATE_NEW, Flow
+from idscore.preprocessor.validate import UNKNOWN_APP_PROTOCOL
 
 # khởi tạo log
 logger = logging.getLogger(__name__)
 
 TCP_PROTOCOL = "TCP"
+TCP_FLAG_SEPARATOR = "-"
 
 # định nghĩa flow tracker
 class FlowTracker:
@@ -57,8 +59,49 @@ class FlowTracker:
             self.flows[key] = flow
 
         is_forward = (event.src_ip, event.src_port) == (flow.a_ip, flow.a_port)
+        direction = DIRECTION_FORWARD if is_forward else DIRECTION_BACKWARD
+        self._update_stats(flow, event, direction)
         event.flow_id = flow.flow_id
-        event.direction = DIRECTION_FORWARD if is_forward else DIRECTION_BACKWARD
+        event.direction = direction
+
+    # hàm dùng để check các event trong 1 flow
+    # đếm các thông tin để điền vào các field của flow 
+    def _update_stats(self, flow: Flow, event: Event, direction: str) -> None:
+        ip_len = event.ip_len
+        size = ip_len if isinstance(ip_len, int) and not isinstance(ip_len, bool) else 0
+        last_seen = max(flow.last_seen, event.timestamp)
+        flags = self._tcp_flags(event) if flow.protocol == TCP_PROTOCOL else ()
+        app_protocol = event.app_protocol
+
+        flow.packet_count += 1
+        flow.byte_count += size
+        if direction == DIRECTION_FORWARD:
+            flow.fwd_packet_count += 1
+            flow.fwd_byte_count += size
+        else:
+            flow.bwd_packet_count += 1
+            flow.bwd_byte_count += size
+
+        flow.last_seen = last_seen
+
+        if flow.protocol == TCP_PROTOCOL:
+            flow.syn_count += "SYN" in flags
+            flow.ack_count += "ACK" in flags
+            flow.fin_count += "FIN" in flags
+            flow.rst_count += "RST" in flags
+
+        if isinstance(app_protocol, str) and flow.application_protocol in (
+            None,
+            UNKNOWN_APP_PROTOCOL,
+        ):
+            flow.application_protocol = app_protocol
+
+    @staticmethod
+    def _tcp_flags(event: Event) -> tuple[str, ...]:
+        flags = event.tcp_flags
+        if not isinstance(flags, str) or not flags:
+            return ()
+        return tuple(flags.split(TCP_FLAG_SEPARATOR))
 
     # nếu có flow key mới thì định nghĩa flow
     def _new_flow(self, key: FlowKey, event: Event) -> Flow:
