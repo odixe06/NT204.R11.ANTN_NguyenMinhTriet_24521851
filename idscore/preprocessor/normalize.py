@@ -4,6 +4,7 @@ import ipaddress
 import math
 from typing import Any
 
+from idscore.models.event import Event
 from idscore.parsers.application.dns import NAME_TYPES, ROOT_NAME
 
 PATH_SEPARATOR = "/"
@@ -12,6 +13,45 @@ HEADER_VALUE_SEPARATOR = ", "
 IPV6_LITERAL_START = "["
 IPV6_LITERAL_END = "]"
 HOST_HEADER = "host"
+MESSAGE_COLLECTIONS: dict[tuple[str, str | None], tuple[tuple[str, type], ...]] = {
+    ("HTTP", "request"): (("headers", dict),),
+    ("HTTP", "response"): (("headers", dict),),
+    ("DNS", None): (("questions", list), ("answers", list)),
+    ("SMTP", "command"): (("commands", list),),
+    ("SMTP", "response"): (("messages", list),),
+}
+
+# dùng để fill các field k có giá trị
+def fill_missing(event: Event) -> None:
+    # error hoặc reason là none -> chuyển về []
+    if event.errors is None:
+        event.errors = []
+    if event.reason is None:
+        event.reason = []
+
+    # nếu app là dict
+    app = event.app
+    if not isinstance(app, dict):
+        return
+
+    # xóa các key có giá trị none
+    for key in [key for key, value in app.items() if value is None]:
+        del app[key]
+
+    # bổ sung các giá trị trong dict theo chuẩn sau
+    # (chỉ bổ sung khi thiếu hoặc none, giá trị sai giữ)
+    # chuỗi rỗng giữ nguyên
+    protocol = normalize_protocol(event.app_protocol)
+    message_type = app.get("message_type")
+    if protocol == "DNS":
+        message_type = None
+    if not isinstance(protocol, str) or not (
+        message_type is None or isinstance(message_type, str)
+    ):
+        return
+
+    for key, factory in MESSAGE_COLLECTIONS.get((protocol, message_type), ()):
+        app.setdefault(key, factory())
 
 # quy tắc chung: nếu input k hợp lệ
 # trả về giá trị ban đầu

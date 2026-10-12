@@ -11,6 +11,7 @@ from idscore.models.event import (
     Event,
 )
 from idscore.preprocessor.normalize import (
+    fill_missing,
     normalize_dns_names,
     normalize_headers,
     normalize_ip,
@@ -18,7 +19,7 @@ from idscore.preprocessor.normalize import (
     normalize_timestamp,
     normalize_uri_path,
 )
-from idscore.preprocessor.validate import validate_event
+from idscore.preprocessor.validate import check_supported, validate_event
 
 # khởi tạo log
 logger = logging.getLogger(__name__)
@@ -38,6 +39,7 @@ class Preprocessor:
         # 2 giá trị preprocessor điền vào event
         event.preprocess_status = PREPROCESS_VALID
         event.processing_action = ACTION_PASS
+        event.reason = []
 
         try: # quy trình thực hiện
             # chuẩn hóa
@@ -46,8 +48,12 @@ class Preprocessor:
             # kiểm tra các tính hợp lệ của các field
             self._validate(event)
 
+            unsupported = check_supported(event)
+            if unsupported:
+                event.reason.append(unsupported)
+
             # áp policy từ config để gán action cho gói tin
-            self._apply_policy(event)
+            self._apply_policy(event, unsupported)
         except Exception as exc:
             # nếu lỗi thì ghi log tùy trường hợp
             logger.error(
@@ -62,6 +68,7 @@ class Preprocessor:
     # lần lượt gọi các hàm để chuẩn hóa các giá trị trong event
     # ghi đè vào field 
     def _normalize(self, event: Event) -> None:
+        fill_missing(event)
         event.transport_protocol = normalize_protocol(event.transport_protocol)
         event.app_protocol = normalize_protocol(event.app_protocol)
         event.src_ip = normalize_ip(event.src_ip)
@@ -83,7 +90,7 @@ class Preprocessor:
         for status, reason in validate_event(event):
             self._downgrade(event, status, reason)
 
-    def _apply_policy(self, event: Event) -> None:
+    def _apply_policy(self, event: Event, unsupported: str | None) -> None:
         pass
 
     @staticmethod

@@ -48,6 +48,23 @@ def validate_event(event: Event) -> list[Issue]:
 
 
 
+def check_supported(event: Event) -> str | None:
+    # nếu parse status unknown -> unsupported (ipv6, arp...)
+    if event.parse_status == PARSE_UNKNOWN:
+        return f"unsupported: parse_status {event.parse_status}"
+
+    ip_version = event.ip_version
+    if ip_version is not None and (not _is_int(ip_version) or ip_version != 4):
+        return f"unsupported: ip_version {ip_version!r}"
+
+    for name in ("src_ip", "dst_ip"):
+        value = getattr(event, name)
+        if isinstance(value, str) and _is_ipv6(value):
+            return f"unsupported: {name} is IPv6 {value!r}"
+    return None
+
+# app protocol unknown thì k xem là unsupported
+
 def validate_metadata(event: Event) -> list[Issue]:
     issues: list[Issue] = []
 
@@ -151,6 +168,13 @@ def validate_inherited(event: Event) -> list[Issue]:
 
 def _is_int(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _is_ipv6(value: str) -> bool:
+    try:
+        return isinstance(ipaddress.ip_address(value), ipaddress.IPv6Address)
+    except ValueError:
+        return False
 
 
 def _ip_problem(value: Any) -> str | None:
