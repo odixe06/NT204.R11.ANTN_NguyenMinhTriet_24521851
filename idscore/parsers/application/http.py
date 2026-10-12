@@ -8,6 +8,7 @@ from scapy.packet import Packet
 from idscore.config import DEFAULTS
 from idscore.models.event import Event
 from idscore.parsers.base import BaseParser
+from idscore.utils.text import decode_text
 
 HEADER_SEPARATOR = b"\r\n\r\n" # tách header và body
 LINE_SEPARATOR = "\r\n" # tách từng dòng HTTP
@@ -67,18 +68,32 @@ class HTTPParser(BaseParser):
                 event.app = {
                     "message_type": "continuation",
                     "body_len": len(payload),
+                    **self._body_fields(payload),
                 }
                 return
             # tạo dict HTTP lưu vào field app của event
             app = dict(start_line)
             app["headers"] = self._headers(lines[1:], event)
             app["body_len"] = len(body)
+            app.update(self._body_fields(body))
             event.app = app
 
             if not separator:
                 self._partial(event, "header has no terminating CRLF CRLF")
         except Exception as exc:
             self._partial(event, f"cannot parse the HTTP message: {exc!r}")
+
+    # cắt bớt body nếu lớn hơn max_body_bytes
+    def _body_fields(self, body: bytes) -> dict:
+        truncated = len(body) > self.max_body_bytes
+        text, status = decode_text(
+            body[: self.max_body_bytes], final=not truncated
+        )
+        return {
+            "body": text, # nội dung đã cắt
+            "body_truncated": truncated, # nội dung bị cắt
+            "body_text_status": status,
+        }
 
     # đọc và nhận diện dòng đầu tiên -> request hay respond
     def _start_line(self, line: str) -> dict | None:

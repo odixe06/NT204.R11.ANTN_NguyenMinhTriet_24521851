@@ -3,7 +3,11 @@
 from dataclasses import asdict, dataclass, field
 
 PARSE_STATUSES = ("OK", "PARTIAL", "UNKNOWN", "MALFORMED")
-DECODE_STATUSES = ("ok", "partial", "failed")
+# các trạng thái decode
+DECODE_OK = "ok"
+DECODE_PARTIAL = "partial"
+DECODE_FAILED = "failed"
+DECODE_STATUSES = (DECODE_OK, DECODE_PARTIAL, DECODE_FAILED)
 PREPROCESS_STATUSES = ("valid", "partial", "invalid")
 PROCESSING_ACTIONS = ("pass", "mark", "drop")
 FLOW_DIRECTIONS = ("forward", "backward")
