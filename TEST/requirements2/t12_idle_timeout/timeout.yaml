@@ -1,0 +1,4 @@
+# config cho T12: timeout nhỏ để tái hiện idle timeout nhanh
+flow:
+  tcp_idle_timeout: 6
+  udp_idle_timeout: 2
