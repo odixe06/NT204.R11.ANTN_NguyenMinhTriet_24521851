@@ -14,7 +14,15 @@ from idscore.capture.pcap import PcapCapture
 from idscore.config import ConfigError, load_config
 from idscore.decoder.decoder import Decoder
 from idscore.flow.tracker import FlowTracker
-from idscore.models.event import ACTION_MARK, PARSE_STATUSES, PREPROCESS_PARTIAL, Event
+from idscore.models.event import (
+    ACTION_DROP,
+    ACTION_MARK,
+    ACTION_PASS,
+    PARSE_STATUSES,
+    PREPROCESS_PARTIAL,
+    PREPROCESS_VALID,
+    Event,
+)
 from idscore.models.flow import Flow
 from idscore.output.jsonl_writer import JsonlWriter
 from idscore.parsers.application.detector import AppProtocolDetector
@@ -140,10 +148,10 @@ def _preprocess_safely(preprocessor: Preprocessor, event: Event) -> None:
         preprocessor.process(event)
     except Exception as exc:
         _log_step_error(event, "preprocessor.process", exc)
-        if event.preprocess_status is None:
+        if event.preprocess_status in (None, PREPROCESS_VALID):
             event.preprocess_status = PREPROCESS_PARTIAL
             event.reason.append(f"cli: preprocessor.process raised {exc!r}")
-        if event.processing_action is None:
+        if event.processing_action in (None, ACTION_PASS):
             event.processing_action = ACTION_MARK
 
 
@@ -218,6 +226,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     packet_count = 0 # bộ đếm
     counts: Counter = Counter()
+    dropped_count = 0
     exit_code = 0
 
     # thông tin log lúc bắt đầu
@@ -247,8 +256,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                     _decode_safely(decoder, event)
                     _preprocess_safely(preprocessor, event)
                     finished_flows = _track_safely(tracker, event)
-                    written = _write_safely(writer, event, packet_id, capture)
-                    counts[written.parse_status] += 1
+
+                    # giữ nguyên invalid và drop nếu preprocessor đã gán trước khi raise
+                    if event.processing_action == ACTION_DROP:
+                        dropped_count += 1
+                        counts[event.parse_status] += 1
+                    else:
+                        written = _write_safely(writer, event, packet_id, capture)
+                        counts[written.parse_status] += 1
             except KeyboardInterrupt:
                 logger.info("Capture stopped by the user")
     except CaptureError as error:
