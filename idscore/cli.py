@@ -12,7 +12,10 @@ from idscore.capture.base import BaseCapture, CaptureError
 from idscore.capture.live import LiveCapture
 from idscore.capture.pcap import PcapCapture
 from idscore.config import ConfigError, load_config
-from idscore.models.event import PARSE_STATUSES, Event
+from idscore.decoder.decoder import Decoder
+from idscore.flow.tracker import FlowTracker
+from idscore.models.event import ACTION_MARK, PARSE_STATUSES, PREPROCESS_PARTIAL, Event
+from idscore.models.flow import Flow
 from idscore.output.jsonl_writer import JsonlWriter
 from idscore.parsers.application.detector import AppProtocolDetector
 from idscore.parsers.application.registry import build_app_parsers
@@ -22,6 +25,7 @@ from idscore.parsers.network.ipv4 import IPv4Parser
 from idscore.parsers.transport.tcp import TCPParser
 from idscore.parsers.transport.udp import UDPParser
 from idscore.pipeline import Pipeline
+from idscore.preprocessor.preprocessor import Preprocessor
 from idscore.utils.logger import setup_logging
 
 logger = logging.getLogger(__name__)
@@ -117,6 +121,39 @@ def _process_safely(
             packet_id, timestamp, capture, f"cli: pipeline.process raised {exc!r}"
         )
 
+
+def _log_step_error(event: Event, step: str, exc: Exception) -> None:
+    logger.error("Packet %d failed in %s: %r", event.packet_id, step, exc)
+    logger.info("Traceback of packet %d", event.packet_id, exc_info=True)
+    event.errors.append(f"cli: {step} raised {exc!r}")
+
+
+def _decode_safely(decoder: Decoder, event: Event) -> None:
+    try:
+        decoder.decode(event)
+    except Exception as exc:
+        _log_step_error(event, "decoder.decode", exc)
+
+
+def _preprocess_safely(preprocessor: Preprocessor, event: Event) -> None:
+    try:
+        preprocessor.process(event)
+    except Exception as exc:
+        _log_step_error(event, "preprocessor.process", exc)
+        if event.preprocess_status is None:
+            event.preprocess_status = PREPROCESS_PARTIAL
+            event.reason.append(f"cli: preprocessor.process raised {exc!r}")
+        if event.processing_action is None:
+            event.processing_action = ACTION_MARK
+
+
+def _track_safely(tracker: FlowTracker, event: Event) -> list[Flow]:
+    try:
+        return tracker.process(event)
+    except Exception as exc:
+        _log_step_error(event, "tracker.process", exc)
+        return []
+
 # xử lý khi quá trình ghi file jsonl bị lỗi
 def _write_safely(
     writer: JsonlWriter, event: Event, packet_id: int, capture: BaseCapture
@@ -173,12 +210,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     # khởi tạo nguồn capture và gọi pipeline xử lý
     capture = build_capture(args)
     pipeline = build_pipeline(config)
+
+    # khởi tạo các thành phần sau parser
+    decoder = Decoder()
+    preprocessor = Preprocessor(config)
+    tracker = FlowTracker(config)
+
     packet_count = 0 # bộ đếm
     counts: Counter = Counter()
     exit_code = 0
 
     # thông tin log lúc bắt đầu
-    # Reading from pcap 'data/pcap/sample.pcap'
+    # ex: Reading from pcap 'data/pcap/sample.pcap'
     # writing events to 'logs/events.jsonl'
     logger.info(
         "Reading from %s '%s', writing events to '%s' and flows to '%s'",
@@ -197,9 +240,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                     capture.packets(), start=1
                 ):
                     packet_count = packet_id
+                    # thêm guard, mỗi hàm có try/except riêng
                     event = _process_safely(
                         pipeline, packet, timestamp, packet_id, capture
                     )
+                    _decode_safely(decoder, event)
+                    _preprocess_safely(preprocessor, event)
+                    finished_flows = _track_safely(tracker, event)
                     written = _write_safely(writer, event, packet_id, capture)
                     counts[written.parse_status] += 1
             except KeyboardInterrupt:
