@@ -187,12 +187,33 @@ def _write_safely(
     return event
 
 
+def _write_flow_safely(flow_writer: JsonlWriter, flow: Flow) -> None:
+    try:
+        flow_writer.write(flow)
+    except OSError:
+        raise
+    except Exception as exc:
+        logger.error("Flow %s could not be serialised: %r", flow.flow_id, exc)
+        logger.info("Traceback of flow %s", flow.flow_id, exc_info=True)
+
+
 # dòng tổng kết cho cả lượt chạy, luôn in đủ 4 status theo thứ tự cố định
-def _report_summary(total: int, counts: Counter) -> None:
+def _report_summary(
+    total: int,
+    counts: Counter,
+    dropped: int,
+    flows_created: int,
+    flows_timed_out: int,
+) -> None:
     breakdown = ", ".join(f"{status} {counts[status]}" for status in PARSE_STATUSES)
     summary = f"Total packets: {total} ({breakdown})"
-    logger.info(summary)
-    print(summary, file=sys.stderr)
+    flow_summary = (
+        f"Dropped events: {dropped}, flows created: {flows_created}, "
+        f"flows timed out: {flows_timed_out}"
+    )
+    for line in (summary, flow_summary):
+        logger.info(line)
+        print(line, file=sys.stderr)
 
 
 # thực hiện vòng lặp bắt gói tin, đếm số lượng gói tin bắt được
@@ -242,7 +263,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     
     # mở jsonl writer để ghi các event
     try:
-        with JsonlWriter(args.output) as writer:
+        with (
+            JsonlWriter(args.output) as writer,
+            JsonlWriter(args.flow_output) as flow_writer,
+        ):
             try:
                 # đọc packet
                 for packet_id, (packet, timestamp) in enumerate(
@@ -256,9 +280,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                     _decode_safely(decoder, event)
                     _preprocess_safely(preprocessor, event)
                     finished_flows = _track_safely(tracker, event)
+                    for flow in finished_flows:
+                        _write_flow_safely(flow_writer, flow)
 
                     # giữ nguyên invalid và drop nếu preprocessor đã gán trước khi raise
                     if event.processing_action == ACTION_DROP:
+                    # action drop thì k cần write
                         dropped_count += 1
                         counts[event.parse_status] += 1
                     else:
@@ -266,6 +293,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                         counts[written.parse_status] += 1
             except KeyboardInterrupt:
                 logger.info("Capture stopped by the user")
+            finally:
+                for flow in tracker.flush():
+                    _write_flow_safely(flow_writer, flow)
     except CaptureError as error:
         if packet_count > 0:
             logger.error(
@@ -278,5 +308,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         logger.error("Output error: %s", error)
         exit_code = 1
 
-    _report_summary(packet_count, counts)
+    _report_summary(
+        packet_count,
+        counts,
+        dropped_count,
+        tracker.flows_created,
+        tracker.flows_timed_out,
+    )
     return exit_code
