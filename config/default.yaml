@@ -1,0 +1,15 @@
+# file này chứa nội dung cấu hình mặc định
+
+# giới hạn nội dung phần body parser lưu lại vào event
+parser:
+  max_body_bytes: 65536
+
+# thời gian timeout khi k nhận packet mới đối với flow
+flow:
+  tcp_idle_timeout: 120
+  udp_idle_timeout: 30
+
+# keep/drop gói tin khi preprocessed xử lý
+preprocess:
+  invalid_policy: keep
+  unsupported_policy: keep
