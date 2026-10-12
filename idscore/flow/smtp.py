@@ -1,3 +1,7 @@
+# file này định nghĩa các hàm phục vụ track các flow smtp
+# vì smtp có 2 pha: command - data
+# -> cần nhớ thông tin qua nhiều packet của cùng 1 kết nối
+
 import logging
 import re
 
@@ -5,9 +9,9 @@ from idscore.decoder.mime import decode_mime_body, parse_headers, transfer_encod
 from idscore.decoder.status import merge_status
 from idscore.models.event import DECODE_FAILED, Event
 from idscore.models.flow import (
-    SMTP_STATE_COMMAND,
-    SMTP_STATE_DATA,
-    SMTP_STATE_DATA_PENDING,
+    SMTP_STATE_COMMAND, # đang ở dòng lệnh
+    SMTP_STATE_DATA,    # đang ở pha data
+    SMTP_STATE_DATA_PENDING,# khoảng chờ giữa lúc client gửi data và lúc server đồng ý
     Flow,
 )
 
@@ -26,24 +30,29 @@ COMMAND_RESPONSE_KEYS = ("commands", "code", "messages", "final")
 END_OF_DATA_TAIL_LEN = 3
 DOT_STUFFED_LINE = re.compile(r"(^|\r\n)\.\.")
 
-
+# dùng cho mọi packet của flow SMTP
 def update_smtp_session(flow: Flow, event: Event, direction: str) -> None:
     app = event.app
     if not isinstance(app, dict):
         return
     text = app.get("payload_text")
+    # packet k có payload text -> bỏ qua
     if not isinstance(text, str) or not text:
         return
-
+    
+    # tính in_data
     in_data = (
         flow._smtp_state == SMTP_STATE_DATA and direction == flow._smtp_client_dir
     )
+
+    # nếu in_data -> phân loại lại và decode
     if in_data:
         _reclassify_as_data(app, event)
         headers_done_before = flow._smtp_headers_done
         _read_encoding(flow, text)
         _decode_body_safely(flow, event, text, headers_done_before)
 
+    # gọi transition để chuyển trạng thái
     _transition(flow, app, text, direction)
 
 
@@ -54,13 +63,14 @@ def _transition(flow: Flow, app: dict, text: str, direction: str) -> None:
             flow._smtp_state = SMTP_STATE_DATA_PENDING
             flow._smtp_client_dir = direction
     elif state == SMTP_STATE_DATA_PENDING:
-        if app.get("message_type") == "response" and direction != flow._smtp_client_dir:
-            if app.get("code") == READY_FOR_DATA_CODE:
+        if direction != flow._smtp_client_dir:
+            if _has_reply_code(text, READY_FOR_DATA_CODE):
                 flow._smtp_state = SMTP_STATE_DATA
                 flow._smtp_encoding = None
                 flow._smtp_headers_done = False
-            else:
-                flow._smtp_state = SMTP_STATE_COMMAND
+        elif app.get("message_type") == "command":
+            flow._smtp_state = SMTP_STATE_COMMAND
+            _transition(flow, app, text, direction)
     elif state == SMTP_STATE_DATA:
         if direction == flow._smtp_client_dir and _ends_data(text):
             flow._smtp_state = SMTP_STATE_COMMAND
@@ -148,6 +158,14 @@ def _has_data_verb(app: dict) -> bool:
     return any(
         isinstance(command, dict) and command.get("verb") == DATA_VERB
         for command in commands
+    )
+
+
+def _has_reply_code(text: str, code: int) -> bool:
+    wanted = str(code)
+    return any(
+        line[:3] == wanted and line[3:4] in ("", " ", "-")
+        for line in text.split("\r\n")
     )
 
 

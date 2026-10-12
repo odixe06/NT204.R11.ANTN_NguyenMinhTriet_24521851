@@ -5,6 +5,7 @@ import logging
 import sys
 from collections import Counter
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 from idscore.capture.base import BaseCapture, CaptureError
@@ -36,15 +37,24 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     # nếu người dùng không truyền gì thì ghi vào event.jsonl và ids.log
     # nếu không thì truyền tham số để đổi vị trí
     parser.add_argument(
+    # tham số output -> file jsonl ghi các event
         "--output",
         default="logs/events.jsonl",
         help="JSON Lines file the events are appended to.",
     )
+    # tham số flow-output -> file jsonl ghi các flow 
+    parser.add_argument(
+        "--flow-output",
+        default="logs/flows.jsonl",
+        help="JSON Lines file the flows are appended to.",
+    )
+    # tham số log-file -> file .log ghi nội dung log
     parser.add_argument(
         "--log-file",
         default="logs/ids.log",
         help="File the runtime log is appended to.",
     )
+    # file config -> truyền config đầu vào
     parser.add_argument(
         "--config",
         default="config/default.yaml",
@@ -147,6 +157,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     # khởi tạo log ngay từ đầu để module có thể ghi vào 
     setup_logging(args.log_file) 
 
+    if Path(args.flow_output).resolve() == Path(args.output).resolve():
+        logger.error(
+            "--flow-output and --output must be different files, both are '%s'",
+            args.output,
+        )
+        return 1
+
     try:
         config = load_config(args.config)
     except ConfigError as error:
@@ -164,10 +181,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Reading from pcap 'data/pcap/sample.pcap'
     # writing events to 'logs/events.jsonl'
     logger.info(
-        "Reading from %s '%s', writing events to '%s'",
+        "Reading from %s '%s', writing events to '%s' and flows to '%s'",
         capture.source_type,
         capture.source,
         args.output,
+        args.flow_output,
     )
     
     # mở jsonl writer để ghi các event
