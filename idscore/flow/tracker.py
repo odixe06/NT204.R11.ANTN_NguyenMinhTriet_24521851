@@ -9,10 +9,18 @@ from idscore.models.event import (
     DIRECTION_BACKWARD,
     DIRECTION_FORWARD,
     PREPROCESS_INVALID,
+    UNKNOWN_APP_PROTOCOL,
     Event,
 )
-from idscore.models.flow import STATE_NEW, Flow
-from idscore.preprocessor.validate import UNKNOWN_APP_PROTOCOL
+from idscore.models.flow import (
+    STATE_CLOSED,
+    STATE_CLOSING,
+    STATE_ESTABLISHED,
+    STATE_HANDSHAKE,
+    STATE_NEW,
+    STATE_RESET,
+    Flow,
+)
 
 # khởi tạo log
 logger = logging.getLogger(__name__)
@@ -60,17 +68,22 @@ class FlowTracker:
 
         is_forward = (event.src_ip, event.src_port) == (flow.a_ip, flow.a_port)
         direction = DIRECTION_FORWARD if is_forward else DIRECTION_BACKWARD
-        self._update_stats(flow, event, direction)
+        is_tcp = flow.protocol == TCP_PROTOCOL
+        flags = self._tcp_flags(event) if is_tcp else frozenset()
+        self._update_stats(flow, event, direction, flags)
+        if is_tcp:
+            self._update_tcp_state(flow, flags, direction)
         event.flow_id = flow.flow_id
         event.direction = direction
 
     # hàm dùng để check các event trong 1 flow
     # đếm các thông tin để điền vào các field của flow 
-    def _update_stats(self, flow: Flow, event: Event, direction: str) -> None:
+    def _update_stats(
+        self, flow: Flow, event: Event, direction: str, flags: frozenset[str]
+    ) -> None:
         ip_len = event.ip_len
         size = ip_len if isinstance(ip_len, int) and not isinstance(ip_len, bool) else 0
         last_seen = max(flow.last_seen, event.timestamp)
-        flags = self._tcp_flags(event) if flow.protocol == TCP_PROTOCOL else ()
         app_protocol = event.app_protocol
 
         flow.packet_count += 1
@@ -96,12 +109,53 @@ class FlowTracker:
         ):
             flow.application_protocol = app_protocol
 
+    # dựa vào các cờ TCP để xác định state của flow
+    def _update_tcp_state(
+        self, flow: Flow, flags: frozenset[str], direction: str
+    ) -> None:
+        state = flow.state
+        if state in (STATE_CLOSED, STATE_RESET):
+            return
+
+        if "RST" in flags:
+            flow.state = STATE_RESET
+        elif state in (STATE_NEW, STATE_HANDSHAKE) and {"SYN", "ACK"} <= flags:
+            flow.state = STATE_HANDSHAKE
+            flow._syn_ack_seen = True
+        elif state == STATE_NEW and "SYN" in flags:
+            flow.state = STATE_HANDSHAKE
+        elif "FIN" in flags and state in (
+            STATE_NEW,
+            STATE_HANDSHAKE,
+            STATE_ESTABLISHED,
+            STATE_CLOSING,
+        ):
+            self._mark_fin(flow, direction)
+            both_closed = flow._fin_fwd and flow._fin_bwd
+            flow.state = STATE_CLOSED if both_closed else STATE_CLOSING
+        elif (
+            state == STATE_HANDSHAKE
+            and flow._syn_ack_seen
+            and "ACK" in flags
+            and "SYN" not in flags
+        ):
+            flow.state = STATE_ESTABLISHED
+
     @staticmethod
-    def _tcp_flags(event: Event) -> tuple[str, ...]:
+    def _mark_fin(flow: Flow, direction: str) -> None:
+        if direction == DIRECTION_FORWARD:
+            flow._fin_fwd = True
+        else:
+            flow._fin_bwd = True
+
+    # với những hàm packet tcp có nhiều cờ 
+    # -> tách cờ để đếm chính xác
+    @staticmethod
+    def _tcp_flags(event: Event) -> frozenset[str]:
         flags = event.tcp_flags
         if not isinstance(flags, str) or not flags:
-            return ()
-        return tuple(flags.split(TCP_FLAG_SEPARATOR))
+            return frozenset()
+        return frozenset(flags.split(TCP_FLAG_SEPARATOR))
 
     # nếu có flow key mới thì định nghĩa flow
     def _new_flow(self, key: FlowKey, event: Event) -> Flow:

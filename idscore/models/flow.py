@@ -62,12 +62,18 @@ class Flow:
     # field lí do kết thúc
     end_reason: str | None = None
 
+    # nhóm field trạng thái nội bộ 
+    _syn_ack_seen: bool = False # flow đã từng thấy SYN-ACK chưa
+    # thấy cờ fin chưa
+    _fin_fwd: bool = False
+    _fin_bwd: bool = False
+
     # chuyển 1 object flow thành dict để ghi ra file jsonl
     # tương tự event
     def to_dict(self) -> dict:
         result = {}
         for key, value in asdict(self).items():
-            if value is None:
+            if value is None or key.startswith("_"):
                 continue
             result[key] = value
             if key == "last_seen":
