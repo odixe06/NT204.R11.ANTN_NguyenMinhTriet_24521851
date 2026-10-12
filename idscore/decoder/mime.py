@@ -13,12 +13,16 @@ TRANSFER_ENCODING_HEADER = "content-transfer-encoding"
 BASE64_BLOCK_LEN = 4
 NO_ENCODING_VALUES = frozenset({"7bit", "8bit", "binary"})
 WHITESPACE = re.compile(r"\s+")
+BASE64_CHARS = re.compile(r"[A-Za-z0-9+/=]*")
 
 # ghi các header
 def parse_headers(text: str) -> dict[str, str]:
     headers: dict[str, str] = {}
     name: str | None = None
     for line in text.splitlines():
+        if not line:
+            break
+
         if line[:1] in (" ", "\t"):
             if name is not None:
                 headers[name] = f"{headers[name]} {line.strip()}".strip()
@@ -48,6 +52,9 @@ def transfer_encoding(headers: dict[str, str]) -> str | None:
 
 def decode_base64(text: str) -> tuple[str | None, str]:
     compact = WHITESPACE.sub("", text)
+    if not BASE64_CHARS.fullmatch(compact):
+        return None, DECODE_FAILED
+
     usable_len = len(compact) - len(compact) % BASE64_BLOCK_LEN
     status = DECODE_OK if usable_len == len(compact) else DECODE_PARTIAL
 
@@ -67,6 +74,8 @@ def decode_quoted_printable(text: str) -> tuple[str, str]:
 def decode_mime_body(
     body: str, encoding: str | None
 ) -> tuple[str | None, str | None]:
+    if encoding is not None:
+        encoding = encoding.strip().lower()
     if encoding is None or encoding in NO_ENCODING_VALUES:
         return None, None
     if encoding == "base64":

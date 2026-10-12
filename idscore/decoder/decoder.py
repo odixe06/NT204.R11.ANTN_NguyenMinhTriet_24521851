@@ -40,11 +40,9 @@ class Decoder:
         if uri:
             event.uri_decoded, status = decode_uri(uri)
             event.decode_status = merge_status(event.decode_status, status)
-        self._merge_text_status(
-            event, event.app.get("body"), event.app.get("body_text_status")
-        )
-
         body = event.app.get("body")
+        self._merge_text_status(event, body, event.app.get("body_text_status"))
+
         headers = event.app.get("headers") or {}
         content_type = headers.get("content-type")
         # nếu body rỗng 
