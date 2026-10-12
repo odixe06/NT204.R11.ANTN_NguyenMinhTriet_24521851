@@ -33,7 +33,7 @@ MAX_PORT = 65535
 # -> đưa ra reason đầy đủ
 
 # 2 mức trạng thái:
-# invalid: thiếu hoặc sai field -> không đưa event vào
+# invalid: thiếu hoặc sai field mà flow tracker cần
 # partial: các field ổn nhưng nội dung k đủ hoặc thiếu nhất quán
 
 # trả về danh sách các lí do ở từng nhóm field một
