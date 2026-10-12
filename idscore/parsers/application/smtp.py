@@ -13,6 +13,7 @@ from idscore.parsers.application.detector import (
     SMTP_VERBS,
 )
 from idscore.parsers.base import BaseParser
+from idscore.utils.text import body_fields
 
 CRLF = b"\r\n"
 VERB_NAMES = frozenset(verb.decode() for verb in SMTP_VERBS)
@@ -58,15 +59,27 @@ class SMTPParser(BaseParser):
             if terminated:
                 raw_lines = raw_lines[:-1]
             lines = [self._decode(line) for line in raw_lines]
+            text_fields = body_fields(
+                payload,
+                self.max_body_bytes,
+                "payload_text",
+                "payload_truncated",
+                "payload_text_status",
+            )
 
             if not lines or self._is_data(lines[0]):
-                event.app = {"message_type": "data", "data_len": len(payload)}
+                event.app = {
+                    "message_type": "data",
+                    "data_len": len(payload),
+                    **text_fields,
+                }
                 return
 
             if self._reply_code(lines[0]) is not None:
                 event.app = self._response(lines, event)
             else:
                 event.app = self._commands(lines, event)
+            event.app.update(text_fields)
 
             if not terminated:
                 self._partial(event, "last line has no terminating CRLF")
