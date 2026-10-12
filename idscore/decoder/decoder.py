@@ -3,20 +3,16 @@
 
 import logging
 
-from idscore.decoder.http import decode_uri
-from idscore.models.event import (
-    DECODE_FAILED,
-    DECODE_OK,
-    DECODE_PARTIAL,
-    Event,
-)
+from idscore.decoder.http import decode_form, decode_uri, is_form_urlencoded
+from idscore.decoder.status import merge_status
+from idscore.models.event import DECODE_FAILED, Event
 
 logger = logging.getLogger(__name__)
 
-SEVERITY = {DECODE_OK: 0, DECODE_PARTIAL: 1, DECODE_FAILED: 2}
-
 
 class Decoder:
+
+    # gọi các thành phần decode cụ thể: input là 1 event
     def decode(self, event: Event) -> None:
         if not isinstance(event.app, dict):
             return
@@ -30,17 +26,23 @@ class Decoder:
             logger.error("Packet %d could not be decoded: %r", event.packet_id, exc)
             logger.info("Traceback of packet %d", event.packet_id, exc_info=True)
             event.errors.append(f"decoder: decode raised {exc!r}")
-            event.decode_status = self._merge_status(event.decode_status, DECODE_FAILED)
+            event.decode_status = merge_status(event.decode_status, DECODE_FAILED)
 
     # decode cho body của http
     def _decode_http(self, event: Event) -> None:
         uri = event.app.get("uri")
         if uri:
             event.uri_decoded, status = decode_uri(uri)
-            event.decode_status = self._merge_status(event.decode_status, status)
+            event.decode_status = merge_status(event.decode_status, status)
         self._merge_text_status(
             event, event.app.get("body"), event.app.get("body_text_status")
         )
+
+        body = event.app.get("body")
+        headers = event.app.get("headers") or {}
+        if body and is_form_urlencoded(headers.get("content-type")):
+            event.body_decoded, status = decode_form(body)
+            event.decode_status = merge_status(event.decode_status, status)
 
     # decode cho body của smtp
     def _decode_smtp(self, event: Event) -> None:
@@ -55,10 +57,4 @@ class Decoder:
         self, event: Event, text: str | None, status: str | None
     ) -> None:
         if text and status is not None:
-            event.decode_status = self._merge_status(event.decode_status, status)
-
-    @staticmethod
-    def _merge_status(current: str | None, new: str) -> str:
-        if current is None:
-            return new
-        return max(current, new, key=SEVERITY.__getitem__)
+            event.decode_status = merge_status(event.decode_status, status)
