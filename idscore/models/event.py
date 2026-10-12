@@ -62,12 +62,12 @@ class Event:
     # khai báo default_factory=list để tạo ra một danh sách rỗng mặc định cho errors (mỗi event có list riêng)
 
 
-    # nhóm decoded:
+    # nhóm decoded: được thành phần decoder ghi vào
     uri_decoded: str | None = None # uri sau khi url decode
-    body_decoded: str | None = None 
+    body_decoded: str | None = None # nội dung body sau decode
     decode_status: str | None = None # trạng thái decode của event (ok, partial, filed, null)
 
-    # nhóm field preprocess 
+    # nhóm field preprocess: được thành phần preprocessor ghi vào
     preprocess_status: str | None = None # valid, partial, invalid
     processing_action: str | None = None # pass, mark hoặc drop
     reason: list[str] = field(default_factory=list) # list lí do, mặc định []
