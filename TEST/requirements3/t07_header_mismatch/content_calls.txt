@@ -1,0 +1,8 @@
+Total packets: 12 (OK 12, PARTIAL 0, UNKNOWN 0, MALFORMED 0)
+Dropped events: 0, flows created: 1, flows timed out: 0
+Detection: events_evaluated=12 events_skipped=0 events_failed=0 candidates_total=24 avg_candidates=2.0 rules_indexed=4 matches_total=1 detections_written=1 rule_errors=0
+exit code: 0
+sid 3070001: _match_contents gọi 6 lần
+sid 3070002: _match_contents gọi 0 lần
+sid 3070003: _match_contents gọi 0 lần
+sid 3070004: _match_contents gọi 0 lần

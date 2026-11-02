@@ -1,0 +1,5 @@
+# T07: cùng content GET, chỉ R1 đúng header
+alert tcp any any -> any 8000 (msg:"T07 R1 correct header"; content:"GET"; sid:3070001; rev:1;)
+alert udp any any -> any 8000 (msg:"T07 R2 wrong protocol"; content:"GET"; sid:3070002; rev:1;)
+alert tcp any any -> any 9999 (msg:"T07 R3 wrong dst port"; content:"GET"; sid:3070003; rev:1;)
+alert tcp 10.0.0.0/8 any -> any 8000 (msg:"T07 R4 wrong src ip"; content:"GET"; sid:3070004; rev:1;)
