@@ -1,0 +1,10 @@
+# T01: nạp file có rule hợp lệ xen giữa dòng trống, dòng chỉ có khoảng trắng, comment thụt đầu dòng
+# và một rule bị comment; chỉ 3 rule hợp lệ được đưa sang parser
+
+alert tcp 127.0.0.1 any -> 127.0.0.1 8000 (msg:"T01 SYN to port 8000"; flags:S; flow:to_server,not_established; sid:3010001; rev:1;)
+    
+    # comment thụt đầu dòng, không phải rule
+alert tcp 127.0.0.1 any -> 127.0.0.1 8000 (msg:"T01 GET to port 8000"; flow:to_server,established; content:"GET "; offset:0; depth:4; sid:3010002; rev:1;)
+# alert tcp any any -> any any (msg:"T01 commented out rule"; sid:1999999; rev:1;)
+
+alert tcp 127.0.0.1 8000 -> 127.0.0.1 any (msg:"T01 response from port 8000"; flow:to_client,established; content:"HTTP/1.0"; offset:0; depth:8; sid:3010003; rev:1;)

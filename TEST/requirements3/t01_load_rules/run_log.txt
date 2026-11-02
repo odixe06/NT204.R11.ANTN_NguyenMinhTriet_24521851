@@ -1,0 +1,7 @@
+2026-11-02 20:04:35,675 INFO idscore.detection.loader: Rules loaded: files=1 failed_files=0 valid=3 invalid=0 unsupported=0 disabled=0
+2026-11-02 20:04:35,676 INFO idscore.detection.repository: Rules indexed: indexed=3 skipped_not_valid=0 duplicate_sid=0
+2026-11-02 20:04:35,676 INFO idscore.cli: Reading from pcap 'TEST/requirements3/t01_load_rules/input.pcap', writing events to 'TEST/requirements3/t01_load_rules/events.jsonl', flows to 'TEST/requirements3/t01_load_rules/flows.jsonl' and detections to 'TEST/requirements3/t01_load_rules/detections.jsonl'
+2026-11-02 20:04:35,679 INFO idscore.cli: Total packets: 12 (OK 12, PARTIAL 0, UNKNOWN 0, MALFORMED 0)
+2026-11-02 20:04:35,679 INFO idscore.cli: Dropped events: 0, flows created: 1, flows timed out: 0
+2026-11-02 20:04:35,679 INFO idscore.cli: Detection: events_evaluated=12 events_skipped=0 events_failed=0 candidates_total=36 avg_candidates=3.0 rules_indexed=3 matches_total=3 detections_written=3 rule_errors=0
+2026-11-02 20:04:35,679 INFO idscore.cli: Matches by sid: 3010001=1 3010002=1 3010003=1

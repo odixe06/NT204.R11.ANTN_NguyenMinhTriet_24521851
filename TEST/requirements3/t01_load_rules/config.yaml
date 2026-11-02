@@ -1,0 +1,4 @@
+# config cho T01: chỉ nạp bộ rule của testcase này
+detection:
+  rule_files:
+    - TEST/requirements3/t01_load_rules/test.rules
