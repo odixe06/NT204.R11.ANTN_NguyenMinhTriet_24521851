@@ -59,7 +59,9 @@ class TCPParser(BaseParser):
             event.ack = int(tcp.ack)
             event.window = int(tcp.window)
             event.tcp_flags = self._flags_to_str(int(tcp.flags))
-            event.payload_len = self._payload_len(tcp)
+            payload = self._payload_bytes(tcp)
+            event.payload = payload
+            event.payload_len = len(payload)
         except Exception as exc:
             self._malformed(event, f"cannot read TCP header: {exc!r}")
             return

@@ -65,6 +65,9 @@ class Event:
     tcp_flags: str | None = None
     window: int | None = None
     payload_len: int | None = None
+    # byte thô phía trên transport: b"" nếu có transport mà không có data, None nếu không parse được transport
+    # không lưu str đã decode vì offset/depth/distance/within đếm theo byte
+    payload: bytes | None = None
 
     # application
     app_protocol: str | None = None
@@ -102,7 +105,8 @@ class Event:
             key: value
             for key, value in asdict(self).items() 
             # asdict tạo bản sao của event mà không đụng object
-            if value is not None 
+            if value is not None and key != "payload"
             # so sánh value với None, nếu khác None -> giữ lại (không xóa các trường rỗng hoặc số 0)
+            # payload là bytes thô, không ghi ra events.jsonl
         }
     # application parser k được ghi giá trị None vào dict app

@@ -76,6 +76,8 @@ class Flow:
     # thấy cờ fin chưa
     _fin_fwd: bool = False
     _fin_bwd: bool = False
+    # chiều của client (forward/backward), None nếu chưa xác định được
+    _client_dir: str | None = None
     _smtp_state: str = SMTP_STATE_COMMAND
     _smtp_client_dir: str | None = None
     _smtp_encoding: str | None = None
@@ -94,3 +96,15 @@ class Flow:
                     self.last_seen - self.start_time, DURATION_DIGITS
                 )
         return result
+
+
+# ảnh chụp chỉ đọc của flow tại thời điểm một event vừa được track
+# chỉ chứa dữ kiện, việc diễn giải (established, to_server, ...) thuộc phía detection
+@dataclass(frozen=True)
+class FlowContext:
+    flow_id: str
+    protocol: str
+    application_protocol: str | None
+    state: str | None  # None với UDP
+    direction: str  # chiều của event: forward/backward
+    from_client: bool | None  # None nếu không xác định được client

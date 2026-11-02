@@ -135,6 +135,23 @@ Gom các packet cùng phiên giao tiếp thành một flow hai chiều, duy trì
 - Event **không được đưa vào flow** khi có `processing_action` là `drop`, `preprocess_status`
   là `invalid`, hoặc thiếu thông tin để dựng 5-tuple như ARP, IPv6, ICMP.
 
+### Client của flow và `FlowContext`
+
+- Mỗi flow ghi nhận bên **client** (field nội bộ `_client_dir`, không ghi ra `flows.jsonl`),
+  chỉ gán một lần:
+  - TCP: `SYN` không `ACK` thì client là chiều của packet đó; `SYN-ACK` thì client là chiều
+    ngược lại. Capture bắt giữa phiên, không thấy handshake, thì client là `None`.
+  - UDP: **quy ước của bài làm** là bên gửi datagram đầu tiên của flow là client. Chưa kiểm
+    chứng quy ước này có giống Snort hay không.
+- `FlowTracker.context_of(event)` trả về `FlowContext`, một snapshot chỉ đọc gồm `flow_id`,
+  `protocol`, `application_protocol`, `state`, `direction` của event và `from_client`
+  (`True`, `False` hoặc `None` nếu không biết client). Trả `None` khi event không thuộc flow
+  nào (bị drop, invalid, thiếu 5-tuple, hoặc `flow_id` không còn khớp flow trong bảng).
+- Phải gọi `context_of` ngay sau `tracker.process(event)` và trước packet kế tiếp, để state
+  đã gồm packet hiện tại và flow chưa bị thay thế.
+- Hạn chế: tracker chỉ chuyển sang `ESTABLISHED` sau khi thấy handshake, nên luồng TCP bắt
+  giữa phiên luôn ở `NEW`, có `from_client` là `None` và không bao giờ thỏa `flow:established`.
+
 ### TCP state machine
 
 | trạng thái hiện tại | packet nhận | trạng thái mới |
@@ -402,6 +419,7 @@ nên một dòng JSONL chỉ chứa những gì thực sự có giá trị.
 | | `tcp_flags` | str | tên các cờ nối bằng `-` theo thứ tự bit `FIN, SYN, RST, PSH, ACK, URG, ECE, CWR`, ví dụ `SYN-ACK`; rỗng nếu không bật cờ nào |
 | | `window` | int | window size, chỉ có ở TCP |
 | | `payload_len` | int | số byte payload trong segment này, đã trừ phần padding của Ethernet |
+| | `payload` | bytes | byte thô của payload, `b""` nếu có transport mà không có data, `None` nếu không parse được transport; **không ghi ra `events.jsonl`**, chỉ dùng trong bộ nhớ cho detection |
 | application | `app_protocol` | str | `HTTP`, `DNS`, `SMTP`, hoặc `UNKNOWN` khi có payload mà không nhận diện được |
 | | `detection_method` | str | `payload` hoặc `port`; không có field này nghĩa là không nhận diện được |
 | | `app` | dict | dữ liệu do parser tầng ứng dụng bóc tách, không chứa giá trị `None` |

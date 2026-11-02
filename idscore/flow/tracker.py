@@ -10,6 +10,7 @@ from idscore.models.event import (
     ACTION_DROP,
     DIRECTION_BACKWARD,
     DIRECTION_FORWARD,
+    FLOW_DIRECTIONS,
     PREPROCESS_INVALID,
     UNKNOWN_APP_PROTOCOL,
     Event,
@@ -25,6 +26,7 @@ from idscore.models.flow import (
     STATE_NEW,
     STATE_RESET,
     Flow,
+    FlowContext,
 )
 
 # khởi tạo log
@@ -134,12 +136,65 @@ class FlowTracker:
         is_forward = (event.src_ip, event.src_port) == (flow.a_ip, flow.a_port)
         direction = DIRECTION_FORWARD if is_forward else DIRECTION_BACKWARD
         self._update_stats(flow, event, direction, flags)
+        self._update_client_dir(flow, flags, direction, is_tcp)
         if is_tcp:
             self._update_tcp_state(flow, flags, direction)
             if flow.application_protocol == SMTP_PROTOCOL:
                 update_smtp_session(flow, event, direction)
         event.flow_id = flow.flow_id
         event.direction = direction
+
+    # xác định client của flow, chỉ gán một lần
+    # TCP: SYN không ACK -> chiều của packet là client, SYN-ACK -> chiều ngược lại
+    #      không thấy handshake (bắt giữa phiên) -> giữ None
+    # UDP: quy ước của bài làm, bên gửi datagram đầu tiên là client
+    @staticmethod
+    def _update_client_dir(
+        flow: Flow, flags: frozenset[str], direction: str, is_tcp: bool
+    ) -> None:
+        if flow._client_dir is not None:
+            return
+        if not is_tcp:
+            flow._client_dir = direction
+        elif "SYN" in flags and "ACK" not in flags:
+            flow._client_dir = direction
+        elif "SYN" in flags and "ACK" in flags:
+            flow._client_dir = (
+                DIRECTION_BACKWARD
+                if direction == DIRECTION_FORWARD
+                else DIRECTION_FORWARD
+            )
+
+    # ảnh chụp chỉ đọc của flow mà event vừa được gắn vào
+    # phải gọi ngay sau process(event), trước packet kế tiếp
+    # trả None khi event không thuộc flow nào, không bao giờ raise
+    def context_of(self, event: Event) -> FlowContext | None:
+        try:
+            if event.flow_id is None:
+                return None
+            key = make_flow_key(event)
+            if key is None:
+                return None
+            flow = self.flows.get(key)
+            if flow is None or flow.flow_id != event.flow_id:
+                return None
+            direction = event.direction
+            if direction not in FLOW_DIRECTIONS:
+                return None
+            from_client = (
+                None if flow._client_dir is None else direction == flow._client_dir
+            )
+            return FlowContext(
+                flow_id=flow.flow_id,
+                protocol=flow.protocol,
+                application_protocol=flow.application_protocol,
+                state=flow.state,
+                direction=direction,
+                from_client=from_client,
+            )
+        except Exception as exc:
+            logger.error("Packet %d has no flow context: %r", event.packet_id, exc)
+            return None
 
     @staticmethod
     def _starts_new_connection(flow: Flow, flags: frozenset[str]) -> bool:

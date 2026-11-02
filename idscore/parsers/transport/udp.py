@@ -47,7 +47,9 @@ class UDPParser(BaseParser):
             event.transport_protocol = "UDP"
             event.src_port = int(udp.sport)
             event.dst_port = int(udp.dport)
-            event.payload_len = self._payload_len(udp)
+            payload = self._payload_bytes(udp)
+            event.payload = payload
+            event.payload_len = len(payload)
         except Exception as exc:
             self._malformed(event, f"cannot read UDP header: {exc!r}")
             return
