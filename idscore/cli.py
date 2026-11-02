@@ -254,6 +254,8 @@ def _report_summary(
     dropped: int,
     flows_created: int,
     flows_timed_out: int,
+    detection_stats: dict,
+    detections_written: int,
 ) -> None:
     breakdown = ", ".join(f"{status} {counts[status]}" for status in PARSE_STATUSES)
     summary = f"Total packets: {total} ({breakdown})"
@@ -261,9 +263,35 @@ def _report_summary(
         f"Dropped events: {dropped}, flows created: {flows_created}, "
         f"flows timed out: {flows_timed_out}"
     )
-    for line in (summary, flow_summary):
+    # avg_candidates cạnh rules_indexed cho thấy indexer có loại bớt rule hay không (mục 4.3)
+    detection_summary = (
+        f"Detection: events_evaluated={detection_stats['events_evaluated']} "
+        f"events_skipped={detection_stats['events_skipped']} "
+        f"events_failed={detection_stats['events_failed']} "
+        f"candidates_total={detection_stats['candidates_total']} "
+        f"avg_candidates={detection_stats['avg_candidates']} "
+        f"rules_indexed={detection_stats['rules_indexed']} "
+        f"matches_total={detection_stats['matches_total']} "
+        f"detections_written={detections_written} "
+        f"rule_errors={detection_stats['rule_errors']}"
+    )
+    for line in (summary, flow_summary, detection_summary):
         logger.info(line)
         print(line, file=sys.stderr)
+
+    # theo sid chỉ ghi vào log file: bộ rule lớn thì dòng này rất dài, làm rối màn hình
+    by_sid = detection_stats["matches_by_sid"]
+    logger.info(
+        "Matches by sid: %s",
+        " ".join(f"{sid}={by_sid[sid]}" for sid in sorted(by_sid)) or "none",
+    )
+    # lệch nghĩa là có Detection Event ghi thất bại (lỗi từng dòng đã log ở _write_detection_safely)
+    if detections_written != detection_stats["matches_total"]:
+        logger.warning(
+            "Detection events written (%d) differ from matches (%d)",
+            detections_written,
+            detection_stats["matches_total"],
+        )
 
 
 # thực hiện vòng lặp bắt gói tin, đếm số lượng gói tin bắt được
@@ -398,5 +426,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         dropped_count,
         tracker.flows_created,
         tracker.flows_timed_out,
+        engine.stats(),
+        detections_written,
     )
     return exit_code
