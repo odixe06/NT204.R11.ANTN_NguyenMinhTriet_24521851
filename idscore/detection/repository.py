@@ -1,6 +1,5 @@
 # file này là Rule Repository / Indexer: lưu các rule valid và chọn rule ứng viên cho một event
-# hợp đồng của module; hiện có: nhận rule, lọc rule valid, xử lý sid trùng, dựng index
-# (candidates(event) là bước sau)
+# hợp đồng của module; API: RuleRepository(rules), candidates(event), stats(), describe(), rules, len()
 #
 # chiều phụ thuộc: repository chỉ dùng idscore.models (Rule, Event), không import matcher,
 # generator hay engine
@@ -23,6 +22,7 @@
 import logging
 from dataclasses import dataclass, field
 
+from idscore.models.event import Event
 from idscore.models.rule import (
     RULE_PROTO_IP,
     RULE_PROTO_TCP,
@@ -84,9 +84,10 @@ class RuleRepository:
                 by_sid[rule.sid] = rule
             self._add(rule)
 
+        stats = self.stats()
         logger.info(
             "Rules indexed: indexed=%d skipped_not_valid=%d duplicate_sid=%d",
-            len(self._rules), self.skipped_not_valid, self.duplicate_sid,
+            stats["indexed"], stats["skipped_not_valid"], stats["duplicate_sid"],
         )
 
     # chọn bucket cho rule: port đơn (ưu tiên dst) > range (ưu tiên dst) > any
@@ -118,3 +119,61 @@ class RuleRepository:
 
     def __len__(self) -> int:
         return len(self._rules)
+
+    # tập rule ứng viên cho một event, theo thứ tự nạp; là tập thừa, matcher mới quyết định match thật
+    # không xét IP, direction, flow, flags, dsize, content, cũng không xét preprocess_status hay
+    # processing_action của event (bỏ qua event bị drop là việc của engine)
+    def candidates(self, event: Event) -> list[Rule]:
+        if event.transport_protocol == RULE_PROTO_TCP:
+            index = self._tcp
+        elif event.transport_protocol == RULE_PROTO_UDP:
+            index = self._udp
+        else:
+            # UNKNOWN hoặc malformed không có transport nên không khớp rule nào, kể cả rule ip
+            return []
+
+        found = set(self._ip_rules)
+        found.update(index.any)
+        # tra cả src_port lẫn dst_port để rule <> không bị sót; port None thì bỏ qua phần có port cụ thể
+        ports = {p for p in (event.src_port, event.dst_port) if isinstance(p, int)}
+        for port in ports:
+            found.update(index.exact.get(port, ()))
+        for low, high, position in index.ranges:
+            if any(low <= port <= high for port in ports):
+                found.add(position)
+        # list mới mỗi lần gọi để nơi gọi sửa cũng không ảnh hưởng index
+        return [self._rules[position] for position in sorted(found)]
+
+    # thống kê tĩnh của index (không đếm số lần gọi candidates, đó là việc của Evaluation Engine)
+    # tổng rule ở mọi bucket cộng IP phải bằng indexed
+    def stats(self) -> dict:
+        def group(index: _PortIndex) -> dict:
+            return {
+                "exact_ports": len(index.exact),
+                "exact_rules": sum(len(v) for v in index.exact.values()),
+                "ranges": len(index.ranges),
+                "any": len(index.any),
+            }
+
+        return {
+            "indexed": len(self._rules),
+            "skipped_not_valid": self.skipped_not_valid,
+            "duplicate_sid": self.duplicate_sid,
+            "TCP": group(self._tcp),
+            "UDP": group(self._udp),
+            "IP": len(self._ip_rules),
+        }
+
+    # nội dung bucket dạng sid thay cho số thứ tự nạp, dict/list mới (port exact sắp tăng dần)
+    def describe(self) -> dict:
+        def sids(positions) -> list[int | None]:
+            return [self._rules[position].sid for position in positions]
+
+        def group(index: _PortIndex) -> dict:
+            return {
+                "exact": {port: sids(index.exact[port]) for port in sorted(index.exact)},
+                "ranges": [[low, high, self._rules[pos].sid] for low, high, pos in index.ranges],
+                "any": sids(index.any),
+            }
+
+        return {"TCP": group(self._tcp), "UDP": group(self._udp), "IP": sids(self._ip_rules)}

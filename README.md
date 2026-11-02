@@ -274,6 +274,14 @@ Flow bắt đầu giữa chừng, tức packet đầu không phải `SYN`, giữ
   được bỏ qua** vì chỉ mang thông tin và có mặt trong gần như mọi rule chính thức. Keyword lặp
   (trừ `content` và modifier) là `invalid`; thiếu `sid` hoặc `msg` là `invalid`; rule chỉ có header,
   `msg`, `sid` vẫn `valid`.
+- **Repository / index (quy ước của bài làm):** chỉ nhận rule `valid`; hai rule cùng `sid` thì giữ rule
+  nạp trước (theo thứ tự `rule_files`), rule sau bị bỏ kèm cảnh báo (chưa chắc Snort xử lý thế nào;
+  `gid` chưa hỗ trợ nên chỉ xét `sid`). Index theo protocol rồi port (`exact`, `ranges`, `any`), rule
+  `ip` để list riêng và luôn là candidate của event TCP/UDP. **Không index theo IP**: phần lớn rule
+  dùng `any`, index CIDR cần prefix tree mà lợi ích không đáng; matcher kiểm tra IP. `candidates(event)`
+  tra cả `src_port` lẫn `dst_port` nên rule `<>` không bị sót, trả tập thừa theo thứ tự nạp; event
+  không có transport TCP/UDP không có candidate nào. `stats()` và `describe()` (theo `sid`) phục vụ
+  debug và báo cáo.
 - Việc đánh `invalid` (ví dụ rule `ip` có port khác `any`) thuộc Rule Parser & Validator,
   loader chỉ đọc file và chuyển từng dòng sang parser.
 
