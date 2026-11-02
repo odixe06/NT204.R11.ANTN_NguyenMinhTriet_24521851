@@ -1,0 +1,18 @@
+# T02: 1 rule hợp lệ và 8 rule hỏng, mỗi rule hỏng đúng một chỗ
+alert tcp 127.0.0.1 any -> 127.0.0.1 8000 (msg:"T02 valid GET to port 8000"; flow:to_server,established; content:"GET "; offset:0; depth:4; sid:3020001; rev:1;)
+# thiếu dấu ) cuối
+alert tcp any any -> any 8000 (msg:"T02 missing closing parenthesis"; sid:3020002; rev:1;
+# header thiếu token (thiếu dst_port)
+alert tcp any any -> any (msg:"T02 header has 6 tokens"; sid:3020003; rev:1;)
+# thiếu sid
+alert tcp any any -> any 8000 (msg:"T02 missing sid"; rev:1;)
+# IP sai
+alert tcp 300.1.1.1 any -> any 8000 (msg:"T02 bad ip"; sid:3020005; rev:1;)
+# CIDR /33
+alert tcp 10.0.0.0/33 any -> any 8000 (msg:"T02 bad cidr"; sid:3020006; rev:1;)
+# port ngoài 0-65535
+alert tcp any 70000 -> any 8000 (msg:"T02 bad port"; sid:3020007; rev:1;)
+# range ngược
+alert tcp any 2000:1000 -> any 8000 (msg:"T02 reversed range"; sid:3020008; rev:1;)
+# content thiếu dấu " đóng
+alert tcp any any -> any 8000 (msg:"T02 unterminated content"; content:"GET; sid:3020009; rev:1;)

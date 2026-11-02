@@ -1,0 +1,15 @@
+2026-11-02 20:04:48,569 WARNING idscore.detection.loader: Rule TEST/requirements3/t02_invalid_rules/test.rules:4 (sid 3020002) is invalid: rule must end with ')'
+2026-11-02 20:04:48,569 WARNING idscore.detection.loader: Rule TEST/requirements3/t02_invalid_rules/test.rules:6 (sid 3020003) is invalid: header: expected 7 tokens (action protocol src_ip src_port direction dst_ip dst_port), got 6
+2026-11-02 20:04:48,569 WARNING idscore.detection.loader: Rule TEST/requirements3/t02_invalid_rules/test.rules:8 is invalid: missing required option 'sid'
+2026-11-02 20:04:48,569 WARNING idscore.detection.loader: Rule TEST/requirements3/t02_invalid_rules/test.rules:10 (sid 3020005) is invalid: src_ip: '300.1.1.1' is not a valid IPv4 network (Octet 300 (> 255) not permitted in '300.1.1.1')
+2026-11-02 20:04:48,569 WARNING idscore.detection.loader: Rule TEST/requirements3/t02_invalid_rules/test.rules:12 (sid 3020006) is invalid: src_ip: '10.0.0.0/33' is not a valid IPv4 network ('33' is not a valid netmask)
+2026-11-02 20:04:48,569 WARNING idscore.detection.loader: Rule TEST/requirements3/t02_invalid_rules/test.rules:14 (sid 3020007) is invalid: src_port: '70000' is outside 0-65535
+2026-11-02 20:04:48,569 WARNING idscore.detection.loader: Rule TEST/requirements3/t02_invalid_rules/test.rules:16 (sid 3020008) is invalid: src_port: '2000:1000' has low greater than high
+2026-11-02 20:04:48,569 WARNING idscore.detection.loader: Rule TEST/requirements3/t02_invalid_rules/test.rules:18 is invalid: option #2: quote is not closed; missing required option 'sid'
+2026-11-02 20:04:48,569 INFO idscore.detection.loader: Rules loaded: files=1 failed_files=0 valid=1 invalid=8 unsupported=0 disabled=0
+2026-11-02 20:04:48,569 INFO idscore.detection.repository: Rules indexed: indexed=1 skipped_not_valid=8 duplicate_sid=0
+2026-11-02 20:04:48,569 INFO idscore.cli: Reading from pcap 'TEST/requirements3/t01_load_rules/input.pcap', writing events to 'TEST/requirements3/t02_invalid_rules/events.jsonl', flows to 'TEST/requirements3/t02_invalid_rules/flows.jsonl' and detections to 'TEST/requirements3/t02_invalid_rules/detections.jsonl'
+2026-11-02 20:04:48,572 INFO idscore.cli: Total packets: 12 (OK 12, PARTIAL 0, UNKNOWN 0, MALFORMED 0)
+2026-11-02 20:04:48,572 INFO idscore.cli: Dropped events: 0, flows created: 1, flows timed out: 0
+2026-11-02 20:04:48,572 INFO idscore.cli: Detection: events_evaluated=12 events_skipped=0 events_failed=0 candidates_total=12 avg_candidates=1.0 rules_indexed=1 matches_total=1 detections_written=1 rule_errors=0
+2026-11-02 20:04:48,573 INFO idscore.cli: Matches by sid: 3020001=1
