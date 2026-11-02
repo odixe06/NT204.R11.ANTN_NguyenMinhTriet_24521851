@@ -1,0 +1,10 @@
+# T04: mỗi rule một dạng header, chỉ kiểm tra Internal Rule Object
+alert tcp any any -> any any (msg:"T04 any to any"; sid:3040001; rev:1;)
+alert tcp 127.0.0.1 any -> any any (msg:"T04 single ip"; sid:3040002; rev:1;)
+alert tcp 10.0.0.0/8 any -> any any (msg:"T04 cidr"; sid:3040003; rev:1;)
+alert tcp any any -> any 80 (msg:"T04 single port"; sid:3040004; rev:1;)
+alert tcp any 1024:65535 -> any any (msg:"T04 port range"; sid:3040005; rev:1;)
+alert tcp any :1023 -> any 8000: (msg:"T04 open ranges"; sid:3040006; rev:1;)
+alert udp any any -> 8.8.8.8 53 (msg:"T04 udp"; sid:3040007; rev:1;)
+alert ip 192.168.1.0/24 any -> any any (msg:"T04 ip"; sid:3040008; rev:1;)
+alert tcp any 80 <> 10.0.0.1 any (msg:"T04 bidirectional"; sid:3040009; rev:1;)

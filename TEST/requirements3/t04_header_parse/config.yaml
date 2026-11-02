@@ -1,0 +1,4 @@
+# config cho T04: chỉ nạp bộ rule của testcase này
+detection:
+  rule_files:
+    - TEST/requirements3/t04_header_parse/test.rules

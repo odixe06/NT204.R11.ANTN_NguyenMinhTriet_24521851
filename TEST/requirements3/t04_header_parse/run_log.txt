@@ -1,0 +1,28 @@
+[3040001] line 2: alert tcp any any -> any any
+    protocol=TCP src_ip=None src_port=None direction=-> dst_ip=None dst_port=None
+    status=valid | khớp kỳ vọng
+[3040002] line 3: alert tcp 127.0.0.1 any -> any any
+    protocol=TCP src_ip=127.0.0.1/32 src_port=None direction=-> dst_ip=None dst_port=None
+    status=valid | khớp kỳ vọng
+[3040003] line 4: alert tcp 10.0.0.0/8 any -> any any
+    protocol=TCP src_ip=10.0.0.0/8 src_port=None direction=-> dst_ip=None dst_port=None
+    status=valid | khớp kỳ vọng
+[3040004] line 5: alert tcp any any -> any 80
+    protocol=TCP src_ip=None src_port=None direction=-> dst_ip=None dst_port=(80, 80)
+    status=valid | khớp kỳ vọng
+[3040005] line 6: alert tcp any 1024:65535 -> any any
+    protocol=TCP src_ip=None src_port=(1024, 65535) direction=-> dst_ip=None dst_port=None
+    status=valid | khớp kỳ vọng
+[3040006] line 7: alert tcp any :1023 -> any 8000:
+    protocol=TCP src_ip=None src_port=(0, 1023) direction=-> dst_ip=None dst_port=(8000, 65535)
+    status=valid | khớp kỳ vọng
+[3040007] line 8: alert udp any any -> 8.8.8.8 53
+    protocol=UDP src_ip=None src_port=None direction=-> dst_ip=8.8.8.8/32 dst_port=(53, 53)
+    status=valid | khớp kỳ vọng
+[3040008] line 9: alert ip 192.168.1.0/24 any -> any any
+    protocol=IP src_ip=192.168.1.0/24 src_port=None direction=-> dst_ip=None dst_port=None
+    status=valid | khớp kỳ vọng
+[3040009] line 10: alert tcp any 80 <> 10.0.0.1 any
+    protocol=TCP src_ip=None src_port=(80, 80) direction=<> dst_ip=10.0.0.1/32 dst_port=None
+    status=valid | khớp kỳ vọng
+rules: 9, sai kỳ vọng: 0
