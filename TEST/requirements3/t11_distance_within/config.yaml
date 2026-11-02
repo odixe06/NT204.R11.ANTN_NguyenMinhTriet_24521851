@@ -1,0 +1,4 @@
+# config cho T11: chỉ nạp bộ rule của testcase này
+detection:
+  rule_files:
+    - TEST/requirements3/t11_distance_within/test.rules

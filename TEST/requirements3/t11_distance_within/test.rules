@@ -1,0 +1,6 @@
+# T11: GET kết thúc ở byte 3, admin nằm ở byte 5 đến 10, HTTP/1.1 nằm ở byte 11 đến 19
+alert tcp any any -> any 8000 (msg:"T11 GET then admin distance 2 within 5"; content:"GET"; content:"admin"; distance:2; within:5; sid:3110001; rev:1;)
+alert tcp any any -> any 8000 (msg:"T11 GET then admin distance 3"; content:"GET"; content:"admin"; distance:3; sid:3110002; rev:1;)
+# within:4 nhỏ hơn độ dài admin sẽ bị parser đánh invalid, nên dùng distance 1 within 5: cửa sổ [4, 9) thiếu 1 byte so với admin [5, 10)
+alert tcp any any -> any 8000 (msg:"T11 GET then admin distance 1 within 5"; content:"GET"; content:"admin"; distance:1; within:5; sid:3110003; rev:1;)
+alert tcp any any -> any 8000 (msg:"T11 admin then HTTP/1.1 distance 1 within 8"; content:"admin"; content:"HTTP/1.1"; distance:1; within:8; sid:3110004; rev:1;)
