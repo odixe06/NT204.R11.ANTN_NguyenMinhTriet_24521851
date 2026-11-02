@@ -248,7 +248,7 @@ Bắt trực tiếp từ card mạng. Live capture cần quyền root, mà `sudo
 nên phải gọi bằng **đường dẫn tuyệt đối tới python của env**:
 
 ```bash
-sudo ~/miniforge3/envs/btids/bin/python main.py --interface eth0
+sudo /home/odixe/Tools/miniconda3/envs/btids/bin/python main.py --interface eth0
 ```
 
 Dừng live capture bằng `Ctrl+C`: chương trình ghi nốt event cuối, ghi toàn bộ flow còn mở
