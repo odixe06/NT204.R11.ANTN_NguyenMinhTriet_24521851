@@ -1,0 +1,32 @@
+# rules/local.rules: bộ rule mặc định, chỉ chứa rule hợp lệ
+# quy ước: mỗi rule nằm trên một dòng, dòng trống và dòng bắt đầu bằng # bị bỏ qua
+# sid từ 1000000 trở lên dành cho rule tự viết
+# mỗi rule có comment phía trên: packet kỳ vọng match, ghi dạng pcap#packet_id (trong TEST/)
+
+# HTTP GET từ client 172.18.124.92 tới cổng 80, content có offset/depth, không nocase
+# kỳ vọng: requirements1/tc04_http_get#4 (GET / HTTP/1.1), requirements1/tc06_http_response#4 (GET /get)
+alert tcp 172.18.124.92 any -> any 80 (msg:"LOCAL HTTP GET request"; flow:to_server,established; content:"GET "; offset:0; depth:4; classtype:web-application-activity; priority:3; sid:1000001; rev:1;)
+
+# HTTP 200 từ cổng 80 về mạng 172.18.0.0/16, hai content nối nhau bằng distance/within
+# kỳ vọng: requirements1/tc04_http_get#6 (Content-Type nằm sau "HTTP/1.1 200 OK" 39 byte)
+alert tcp any 80 -> 172.18.0.0/16 any (msg:"LOCAL HTTP 200 response with Content-Type"; flow:to_client,established; content:"HTTP/1.1 200 OK"; offset:0; depth:15; content:"Content-Type"; nocase; distance:0; within:60; classtype:web-application-activity; priority:3; sid:1000002; rev:1;)
+
+# DNS query hỏi example.com tới 8.8.8.8, datagram đầu tiên của flow UDP nên chưa established
+# kỳ vọng: requirements2/t10_udp_query_response#1 (payload 52 byte)
+alert udp any any -> 8.8.8.8 53 (msg:"LOCAL DNS query for example.com"; flow:to_server,not_established; content:"|07|example|03|com|00|"; nocase; dsize:30<>100; classtype:misc-activity; priority:4; sid:1000003; rev:1;)
+
+# DNS response từ 8.8.8.8, flow UDP đã có packet hai chiều nên established
+# kỳ vọng: requirements2/t10_udp_query_response#2 (payload 72 byte)
+alert udp 8.8.8.8 53 -> any any (msg:"LOCAL DNS response for example.com"; flow:to_client,established; content:"example"; offset:13; depth:7; dsize:60<=>80; classtype:misc-activity; priority:4; sid:1000004; rev:1;)
+
+# lệnh SMTP MAIL FROM (viết thường trong pcap nên cần nocase), rule hai chiều <>
+# kỳ vọng: requirements2/t03_smtp_mime#12 (mail FROM:<alice@test.local>)
+alert tcp 127.0.0.1 any <> 127.0.0.1 25 (msg:"LOCAL SMTP MAIL FROM command"; flow:to_server,established; content:"MAIL FROM"; nocase; offset:0; depth:9; classtype:protocol-command-decode; priority:2; sid:1000005; rev:1;)
+
+# gói SYN không payload từ cổng cao tới cổng dịch vụ (1-1023), flow chưa established
+# kỳ vọng: requirements1/tc01_tcp_handshake#1, requirements1/tc04_http_get#1, requirements2/t03_smtp_mime#1
+alert tcp any 1024:65535 -> any 1:1023 (msg:"LOCAL TCP SYN without payload"; flags:S; dsize:0; flow:to_server,not_established; classtype:attempted-recon; priority:2; sid:1000006; rev:1;)
+
+# rule giao thức ip (cổng bắt buộc any): mọi lưu lượng TCP/UDP từ mạng lab tới 8.8.8.8
+# kỳ vọng: requirements2/t10_udp_query_response#1, requirements1/tc07_dns_query#1
+alert ip 172.18.124.0/24 any -> 8.8.8.8 any (msg:"LOCAL traffic from lab subnet to 8.8.8.8"; classtype:misc-activity; priority:4; sid:1000007; rev:1;)

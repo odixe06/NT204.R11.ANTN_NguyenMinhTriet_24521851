@@ -212,6 +212,36 @@ Flow bắt đầu giữa chừng, tức packet đầu không phải `SYN`, giữ
   `JsonlWriter`. Khác `Event.to_dict`, `to_dict()` của detection event luôn giữ đủ các key,
   thiếu giá trị (`priority`, `classtype`, `flow_id`, ...) thì ghi `null`, để schema cố định. Pattern `bytes` được ghi dạng đọc được, byte không in được viết là `|41 42|`.
 
+### File rule và các module detection
+
+- **Định dạng file `.rules` (quy ước của bài làm):** mỗi rule nằm trên **một dòng**; dòng trống
+  và dòng bắt đầu bằng `#` bị bỏ qua. Không hỗ trợ rule trải nhiều dòng.
+- `rules/local.rules` là file mặc định của `detection.rule_files`, chỉ chứa rule hợp lệ, `sid`
+  từ 1000000 trở lên (dải dành cho rule tự viết theo quy ước Snort). Mỗi rule có comment ghi
+  packet kỳ vọng match trong pcap nào của `TEST/`. Rule sai cú pháp hoặc ngoài phạm vi dùng
+  cho testcase được đặt trong file riêng ở `TEST/`, không để lẫn vào file mặc định.
+- Bộ 7 rule mẫu gộp lại dùng `tcp`/`udp`/`ip`, IP `any`/đơn/CIDR, port `any`/đơn/range, `->` và
+  `<>`, `msg`/`sid`/`rev`, `content` có và không `nocase`, `offset`, `depth`, hai `content` với
+  `distance`/`within`, `flags`, `dsize` (`<>`, `<=>`, `0`), `flow` (`to_server`, `to_client`,
+  `established`, `not_established`), `classtype`, `priority`.
+- Việc đánh `invalid` (ví dụ rule `ip` có port khác `any`) thuộc Rule Parser & Validator,
+  loader chỉ đọc file và chuyển từng dòng sang parser.
+
+| file trong `idscore/detection/` | module của đề | input → output |
+| --- | --- | --- |
+| `loader.py` | Rule Loader | config `detection` → `list[Rule]` |
+| `rule_parser.py` | Rule Parser & Validator | một dòng rule → `Rule` (valid/invalid/unsupported) |
+| `repository.py` | Rule Repository / Indexer | rule valid → rule ứng viên theo protocol và port |
+| `matcher.py` | Rule Matching Engine | `Rule`, `Event`, `FlowContext` → danh sách match hoặc `None` |
+| `engine.py` | Rule Evaluation Engine | `Event`, `FlowContext` → `list[DetectionEvent]` |
+| `generator.py` | Detection Event Generator | rule đã khớp → `DetectionEvent` |
+
+Phụ thuộc đi một chiều: `loader` gọi `rule_parser`, kết quả được đưa vào `repository`; `engine`
+dùng `repository`, `matcher`, `generator`. `matcher` không import `generator`, không in cảnh
+báo, không sửa `Event` hay `FlowContext`. Không module nào trong `detection/` import Scapy,
+vì Core Engine chỉ đọc `Event.payload` đã chép sẵn lúc parse. Hiện các file này mới chỉ có
+comment mô tả hợp đồng của từng module.
+
 ## Pipeline xử lý
 
 ```text
