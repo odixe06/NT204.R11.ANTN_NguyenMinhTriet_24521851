@@ -1,0 +1,2 @@
+# T14: rule theo ví dụ của đề, phát hiện path traversal
+alert tcp any any -> any 8000 (msg:"Directory traversal detected"; flow:to_server,established; content:"../"; classtype:web-application-attack; priority:1; sid:3140001; rev:1;)

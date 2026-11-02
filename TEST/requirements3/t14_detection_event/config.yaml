@@ -1,0 +1,4 @@
+# config cho T14: chỉ nạp bộ rule của testcase này
+detection:
+  rule_files:
+    - TEST/requirements3/t14_detection_event/test.rules
