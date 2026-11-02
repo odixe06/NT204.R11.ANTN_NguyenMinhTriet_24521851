@@ -26,6 +26,11 @@ DEFAULTS: dict[str, Any] = {
         "invalid_policy": POLICY_KEEP,
         "unsupported_policy": POLICY_KEEP,
     },
+    "detection": {
+        "rule_files": ["rules/local.rules"],
+        "disabled_files": [],
+        "disabled_sids": [],
+    },
 }
 
 
@@ -50,6 +55,17 @@ def _is_policy(value: Any) -> bool:
     return isinstance(value, str) and value in POLICIES
 
 
+# danh sách rỗng vẫn hợp lệ, IDS vẫn chạy được khi không có detection
+def _is_str_list(value: Any) -> bool:
+    return isinstance(value, list) and all(
+        isinstance(item, str) and item.strip() for item in value
+    )
+
+
+def _is_positive_int_list(value: Any) -> bool:
+    return isinstance(value, list) and all(_is_positive_int(item) for item in value)
+
+
 POLICY_EXPECTED = f"'{POLICY_KEEP}' or '{POLICY_DROP}'"
 
 VALIDATORS: dict[str, tuple[Callable[[Any], bool], str]] = {
@@ -58,6 +74,9 @@ VALIDATORS: dict[str, tuple[Callable[[Any], bool], str]] = {
     "flow.udp_idle_timeout": (_is_positive_number, "a number greater than 0"),
     "preprocess.invalid_policy": (_is_policy, POLICY_EXPECTED),
     "preprocess.unsupported_policy": (_is_policy, POLICY_EXPECTED),
+    "detection.rule_files": (_is_str_list, "a list of non-empty strings"),
+    "detection.disabled_files": (_is_str_list, "a list of non-empty strings"),
+    "detection.disabled_sids": (_is_positive_int_list, "a list of integers greater than 0"),
 }
 
 

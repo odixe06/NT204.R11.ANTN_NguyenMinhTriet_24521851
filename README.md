@@ -187,6 +187,18 @@ Flow bắt đầu giữa chừng, tức packet đầu không phải `SYN`, giữ
 | `end_of_capture` | flow còn mở khi hết pcap hoặc dừng live capture |
 | `new_connection` | flow TCP đã `CLOSED` hoặc `RESET` mà gặp `SYN` mới cùng 5-tuple |
 
+## Module Detection: model dữ liệu
+
+- `idscore/models/rule.py`: `Rule` có trạng thái `valid`, `invalid`, `unsupported` kèm
+  `source_file`, `line_no`, `raw`, `reasons` để chỉ ra rule nằm ở đâu và vì sao bị loại.
+  IP lưu dạng `IPv4Network` (`None` là `any`, IP đơn là `/32`), port lưu dạng `(low, high)`
+  (`None` là `any`), mỗi `content` là một object riêng và giữ đúng thứ tự khai báo.
+- **Quy ước của bài làm** (chưa đối chiếu với Snort): `sid` và `msg` là bắt buộc, thiếu `rev`
+  thì mặc định 1, `classtype` và `priority` mặc định `None`.
+- `idscore/models/detection.py`: `DetectionEvent` lấy `timestamp` từ event (không dùng giờ hệ
+  thống), có `packet_id` để tra về `events.jsonl`, và `to_dict()` nên dùng lại được
+  `JsonlWriter`. Pattern `bytes` được ghi dạng đọc được, byte không in được viết là `|41 42|`.
+
 ## Pipeline xử lý
 
 ```text
@@ -311,6 +323,13 @@ flow:
 preprocess:
   invalid_policy: keep
   unsupported_policy: keep
+
+# nạp rule cho detection; đường dẫn tương đối tính theo thư mục chạy lệnh
+detection:
+  rule_files:
+    - rules/local.rules
+  disabled_files: []
+  disabled_sids: []
 ```
 
 | key | giá trị hợp lệ | ý nghĩa |
@@ -320,6 +339,13 @@ preprocess:
 | `flow.udp_idle_timeout` | số lớn hơn 0, đơn vị giây | idle timeout của flow UDP |
 | `preprocess.invalid_policy` | `keep` hoặc `drop` | xử lý event `invalid` |
 | `preprocess.unsupported_policy` | `keep` hoặc `drop` | xử lý event unsupported |
+| `detection.rule_files` | list chuỗi khác rỗng, có thể rỗng | các file `.rules` được nạp |
+| `detection.disabled_files` | list chuỗi khác rỗng, có thể rỗng | file nằm trong `rule_files` nhưng tạm tắt |
+| `detection.disabled_sids` | list số nguyên lớn hơn 0, có thể rỗng | `sid` của các rule bị tắt |
+
+Các list trong nhóm `detection` được **thay thế toàn bộ** khi YAML khai báo, không nối thêm
+vào list mặc định. Config chỉ kiểm tra kiểu, không kiểm tra file `.rules` có tồn tại; file
+thiếu hoặc lỗi là việc của rule loader. List rỗng hợp lệ, IDS vẫn chạy khi không có detection.
 
 File config chỉ cần ghi các key muốn đổi, key còn lại lấy giá trị mặc định. Key không biết
 được cảnh báo trong log rồi bỏ qua. File không tồn tại thì dùng toàn bộ giá trị mặc định.

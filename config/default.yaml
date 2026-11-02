@@ -13,3 +13,13 @@ flow:
 preprocess:
   invalid_policy: keep
   unsupported_policy: keep
+
+# nạp rule cho detection; đường dẫn tương đối tính theo thư mục chạy lệnh
+detection:
+  # các file .rules được nạp (list trong YAML thay thế toàn bộ list mặc định)
+  rule_files:
+    - rules/local.rules
+  # file nằm trong rule_files nhưng tạm tắt
+  disabled_files: []
+  # sid của các rule bị tắt
+  disabled_sids: []
