@@ -1,5 +1,5 @@
 # file này là Rule Parser & Validator: chuyển một dòng rule thành một Rule
-# hợp đồng của module; Phase 3 đang viết dần phần parse (hiện có: khung, tách header/options, parse header)
+# hợp đồng của module; Phase 3 đang viết dần phần parse (hiện có: khung, tách header/options, parse header, identification, content)
 #
 # chiều phụ thuộc: rule_parser chỉ dùng idscore.models.rule, không import module khác trong detection/
 #
@@ -34,6 +34,7 @@ from idscore.models.rule import (
     RULE_PROTO_UDP,
     RULE_UNSUPPORTED,
     RULE_VALID,
+    Content,
     PortRange,
     Rule,
 )
@@ -58,6 +59,20 @@ IPV4_PATTERN = re.compile(r"[0-9]{1,3}(\.[0-9]{1,3}){3}(/[0-9]{1,2})?")
 # [0-9] thay vì \d / isdigit / int(): tránh "+80", "8_0", "²"
 PORT_NUMBER = re.compile(r"[0-9]+")
 PORT_RANGE = re.compile(r"([0-9]*):([0-9]*)")
+
+POSITIVE_INT = re.compile(r"[0-9]+")
+SIGNED_INT = re.compile(r"-?[0-9]+")
+CLASSTYPE = re.compile(r"[A-Za-z0-9_-]+")
+HEX_BYTES = re.compile(r"([0-9A-Fa-f]{2})+")
+HEX_DELIMITER = "|"
+# ký tự được phép đứng sau \ trong chuỗi trong ngoặc kép (msg và content dùng chung)
+ESCAPABLE = frozenset({QUOTE, ESCAPE, OPTION_SEPARATOR})
+NOT_PREFIX = "!"
+KEYWORD_CONTENT = "content"
+KEYWORD_NOCASE = "nocase"
+# modifier số của content; depth và within phải lớn hơn 0, offset và distance được âm
+CONTENT_INT_MODIFIERS = ("offset", "depth", "distance", "within")
+POSITIVE_MODIFIERS = frozenset({"depth", "within"})
 
 
 # bộ ghi lỗi của một lần parse: các bước chỉ ghi lỗi vào đây và đi tiếp, không return sớm,
@@ -265,6 +280,221 @@ def _parse_header(header: str, rule: Rule, problems: _Problems) -> None:
         problems.add_invalid("protocol: rule 'ip' requires src_port and dst_port to be 'any'")
 
 
+# lỗi cú pháp dự kiến của một chuỗi trong ngoặc kép, được bắt ngay nơi gọi _scan_quoted
+class _QuotedError(ValueError):
+    pass
+
+
+# đọc chuỗi trong ngoặc kép, dùng chung cho msg và content để quy tắc escape không lệch nhau
+# bắt buộc mở và đóng bằng ", không có gì sau ngoặc đóng; unescape \" \\ \;, \ đi với ký tự khác
+# là lỗi (quy ước của bài làm, chưa chắc Snort có bỏ qua \ đó không)
+# hex_allowed: |41 42| đổi thành byte (content); với msg thì | chỉ là ký tự thường
+# quét một lượt vì phải phân biệt | mở đoạn hex với ký tự trong chuỗi
+def _scan_quoted(value: str | None, hex_allowed: bool) -> bytes:
+    if value is None or len(value) < 2 or value[0] != QUOTE:
+        raise _QuotedError("value must be a string in double quotes")
+    out = bytearray()
+    last = len(value) - 1
+    i = 1
+    while i <= last:
+        char = value[i]
+        if char == QUOTE:
+            if i != last:
+                raise _QuotedError("unexpected text after the closing quote")
+            return bytes(out)
+        if char == ESCAPE:
+            if i + 1 > last or value[i + 1] not in ESCAPABLE:
+                raise _QuotedError(f"'{ESCAPE}' must be followed by one of {sorted(ESCAPABLE)}")
+            out += value[i + 1].encode("utf-8")
+            i += 2
+        elif char == HEX_DELIMITER and hex_allowed:
+            end = value.find(HEX_DELIMITER, i + 1)
+            if end == -1:
+                raise _QuotedError(f"hex section opened by '{HEX_DELIMITER}' is not closed")
+            for token in value[i + 1 : end].split():
+                if not HEX_BYTES.fullmatch(token):
+                    raise _QuotedError(f"{token!r} in hex section is not whole hex bytes")
+                out += bytes.fromhex(token)
+            i = end + 1
+        else:
+            out += char.encode("utf-8")
+            i += 1
+    raise _QuotedError("closing quote is missing")
+
+
+def _positive_int(option: "_Option", problems: _Problems) -> int | None:
+    if option.value is None or not POSITIVE_INT.fullmatch(option.value) or int(option.value) <= 0:
+        problems.add_invalid(
+            f"option #{option.index} ({option.keyword}): must be an integer greater than 0, "
+            f"got {option.value!r}"
+        )
+        return None
+    return int(option.value)
+
+
+# các keyword identification và classification, mỗi keyword một hàm; keyword lặp: giữ giá trị đầu
+# (việc báo trùng thuộc validator tổng hợp)
+def _opt_msg(option: "_Option", rule: Rule, problems: _Problems) -> None:
+    try:
+        text = _scan_quoted(option.value, hex_allowed=False).decode("utf-8")
+    except _QuotedError as error:
+        problems.add_invalid(f"option #{option.index} (msg): {error}")
+        return
+    if not text:
+        problems.add_invalid(f"option #{option.index} (msg): must not be empty")
+        return
+    rule.msg = text
+
+
+def _opt_sid(option: "_Option", rule: Rule, problems: _Problems) -> None:
+    # gán ngay khi đọc được, để disabled_sids tắt được rule hỏng vì lý do khác
+    # không cảnh báo sid < 1000000: rule chính thức của Snort có sid thấp
+    value = _positive_int(option, problems)
+    if value is not None:
+        rule.sid = value
+
+
+def _opt_rev(option: "_Option", rule: Rule, problems: _Problems) -> None:
+    value = _positive_int(option, problems)
+    if value is not None:
+        rule.rev = value
+
+
+def _opt_priority(option: "_Option", rule: Rule, problems: _Problems) -> None:
+    value = _positive_int(option, problems)
+    if value is not None:
+        rule.priority = value
+
+
+# chỉ kiểm tra dạng token, không đối chiếu classification.config của Snort
+def _opt_classtype(option: "_Option", rule: Rule, problems: _Problems) -> None:
+    if option.value is None or not CLASSTYPE.fullmatch(option.value):
+        problems.add_invalid(
+            f"option #{option.index} (classtype): must be one token of [A-Za-z0-9_-], "
+            f"got {option.value!r}"
+        )
+        return
+    rule.classtype = option.value
+
+
+IDENTIFICATION_PARSERS = {
+    "msg": _opt_msg,
+    "sid": _opt_sid,
+    "rev": _opt_rev,
+    "priority": _opt_priority,
+    "classtype": _opt_classtype,
+}
+
+
+# bộ đệm của content đang đọc: Content là frozen nên modifier không gán dần vào được
+# pattern None nghĩa là pattern của content này đã lỗi hoặc unsupported, modifier đi sau vẫn gắn vào đây
+class _ContentBuilder:
+    def __init__(self, index: int, ordinal: int, pattern: bytes | None) -> None:
+        self.index = index # số thứ tự option, để ghi lý do
+        self.ordinal = ordinal # content thứ mấy trong rule, tính từ 1
+        self.pattern = pattern
+        self.nocase = False
+        self.numbers: dict[str, int] = {}
+
+
+def _start_content(option: "_Option", ordinal: int, problems: _Problems) -> _ContentBuilder:
+    prefix = f"option #{option.index} (content)"
+    value = option.value
+    pattern = None
+    if value is not None and value.startswith(NOT_PREFIX):
+        problems.add_unsupported(f"{prefix}: negated content '!' is not supported")
+    else:
+        try:
+            pattern = _scan_quoted(value, hex_allowed=True)
+            if not pattern:
+                problems.add_invalid(f"{prefix}: pattern must not be empty")
+                pattern = None
+        except _QuotedError as error:
+            problems.add_invalid(f"{prefix}: {error}")
+    return _ContentBuilder(option.index, ordinal, pattern)
+
+
+def _apply_modifier(
+    builder: _ContentBuilder | None, option: "_Option", problems: _Problems
+) -> None:
+    prefix = f"option #{option.index} ({option.keyword})"
+    if builder is None:
+        problems.add_invalid(f"{prefix}: must come after a content")
+        return
+    keyword = option.keyword
+    if keyword == KEYWORD_NOCASE:
+        if option.value is not None:
+            problems.add_invalid(f"{prefix}: takes no value, got {option.value!r}")
+        elif builder.nocase:
+            problems.add_invalid(f"{prefix}: repeated on the same content")
+        else:
+            builder.nocase = True # không đổi pattern về chữ thường, matcher tự xử lý
+        return
+
+    value = option.value
+    if value is None or not SIGNED_INT.fullmatch(value):
+        problems.add_invalid(f"{prefix}: must be an integer, got {value!r}")
+    elif keyword in POSITIVE_MODIFIERS and int(value) <= 0:
+        problems.add_invalid(f"{prefix}: must be greater than 0, got {value}")
+    elif keyword in builder.numbers:
+        problems.add_invalid(f"{prefix}: repeated on the same content")
+    else:
+        builder.numbers[keyword] = int(value)
+
+
+# chốt một content: kiểm tra ràng buộc kết hợp rồi thêm vào Rule.contents
+# chặn ngay ở parser để matcher chỉ có một mốc vị trí cho mỗi content (quy ước của bài làm)
+def _finish_content(builder: _ContentBuilder, rule: Rule, problems: _Problems) -> None:
+    pattern = builder.pattern
+    if pattern is None:
+        return
+    prefix = f"option #{builder.index} (content)"
+    numbers = builder.numbers
+    for keyword in POSITIVE_MODIFIERS:
+        if keyword in numbers and numbers[keyword] < len(pattern):
+            problems.add_invalid(
+                f"{prefix}: {keyword} {numbers[keyword]} is shorter than the "
+                f"{len(pattern)}-byte pattern, it can never match"
+            )
+    if builder.ordinal == 1 and ("distance" in numbers or "within" in numbers):
+        problems.add_invalid(f"{prefix}: distance/within on the first content has nothing to follow")
+    if ("offset" in numbers or "depth" in numbers) and ("distance" in numbers or "within" in numbers):
+        problems.add_invalid(f"{prefix}: offset/depth cannot be combined with distance/within")
+    rule.contents.append(
+        Content(
+            pattern=pattern,
+            nocase=builder.nocase,
+            offset=numbers.get("offset"),
+            depth=numbers.get("depth"),
+            distance=numbers.get("distance"),
+            within=numbers.get("within"),
+        )
+    )
+
+
+# duyệt options theo thứ tự khai báo; modifier gắn vào content đứng ngay trước
+def _parse_options(options: list["_Option"], rule: Rule, problems: _Problems) -> None:
+    seen: set[str] = set()
+    builder: _ContentBuilder | None = None
+    ordinal = 0
+    for option in options:
+        keyword = option.keyword
+        if keyword in IDENTIFICATION_PARSERS:
+            if keyword not in seen:
+                seen.add(keyword)
+                IDENTIFICATION_PARSERS[keyword](option, rule, problems)
+        elif keyword == KEYWORD_CONTENT:
+            if builder is not None:
+                _finish_content(builder, rule, problems)
+            ordinal += 1
+            builder = _start_content(option, ordinal, problems)
+        elif keyword == KEYWORD_NOCASE or keyword in CONTENT_INT_MODIFIERS:
+            _apply_modifier(builder, option, problems)
+        # keyword khác (flags, dsize, flow, ngoài phạm vi): các bước sau
+    if builder is not None:
+        _finish_content(builder, rule, problems)
+
+
 # interface mà loader gọi cho từng dòng rule
 # loader truyền line đã strip(), không có ký tự xuống dòng
 # line_no đếm từ 1 theo dòng thật trong file, kể cả dòng trống và comment
@@ -278,8 +508,8 @@ def parse_rule(line: str, source_file: str, line_no: int) -> Rule:
     options = _split_options(body, problems) if body is not None else []
     if header:  # header rỗng đã bị ghi lỗi ở _split_header_options
         _parse_header(header, rule, problems)
-    # các bước sau đọc options, ghi lỗi vào problems rồi chốt status ở đây
-    del options
+    _parse_options(options, rule, problems)
+    # các bước sau (flags, dsize, flow, validator) ghi thêm lỗi vào problems trước khi chốt status
 
     rule.status = problems.status
     rule.reasons = problems.reasons

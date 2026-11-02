@@ -243,6 +243,21 @@ Flow bắt đầu giữa chừng, tức packet đầu không phải `SYN`, giữ
   như `10.0.0.5/24` là `invalid` (không tự đưa về `10.0.0.0/24`), netmask dạng
   `10.0.0.0/255.0.0.0` là `invalid`. Port `:b` hiểu là `0:b` (chưa chắc Snort lấy 0 hay 1),
   `a:` là `a:65535`. `!`, `[...]`, `$VAR` và IPv6 là `unsupported`.
+- **Identification và content (quy ước của bài làm):**
+  - `msg` và `content` dùng chung quy tắc escape: chỉ chấp nhận `\"`, `\\`, `\;`, `\` đi với ký tự
+    khác là `invalid` (chưa chắc Snort có bỏ qua không). `msg` rỗng là `invalid`.
+  - `sid`, `rev`, `priority` là số nguyên dương viết bằng chữ số ASCII. `sid` được đọc cả khi rule
+    hỏng vì lý do khác, để `disabled_sids` tắt được. Không cảnh báo `sid` nhỏ hơn 1000000.
+  - `classtype` chỉ kiểm tra dạng token `[A-Za-z0-9_-]+`, không kiểm tra có tồn tại trong
+    `classification.config`.
+  - `content:"a|41 42|b"` đổi thành bytes; `content:!"..."` là `unsupported`; pattern rỗng là
+    `invalid`. Cú pháp modifier đặt sau dấu phẩy của Snort 3 (`content:"a", nocase;`) bị coi là
+    `invalid` vì chưa rõ chi tiết.
+  - `nocase` không có giá trị; `offset`, `distance` là số nguyên (cho phép âm, chưa kiểm chứng cận
+    của Snort), `depth`, `within` phải lớn hơn 0. Modifier gắn vào content đứng ngay trước, đứng
+    trước mọi content hoặc lặp trên cùng content là `invalid`.
+  - Parser còn chặn: `depth`/`within` nhỏ hơn độ dài pattern, `distance`/`within` trên content đầu
+    tiên, và `offset`/`depth` kết hợp `distance`/`within` trên cùng content (cả ba là `invalid`).
 - Việc đánh `invalid` (ví dụ rule `ip` có port khác `any`) thuộc Rule Parser & Validator,
   loader chỉ đọc file và chuyển từng dòng sang parser.
 
