@@ -1,5 +1,7 @@
 # file này là Rule Loader: đọc các file .rules và đưa từng dòng sang rule_parser
-# hợp đồng của module; hàm công khai duy nhất là load_rules, các hàm còn lại là bước nội bộ
+# hàm công khai duy nhất là load_rules(config["detection"]) -> list[Rule]; các hàm còn lại là nội bộ
+# (select_rule_files, _read_rule_file, _split_rule_lines, _parse_safely, _warn_rule)
+# nơi gọi (cli.py) chỉ cần gọi load_rules một lần lúc khởi động rồi đưa kết quả cho repository
 #
 # chiều phụ thuộc (một chiều, không import ngược):
 #   loader -> rule_parser;  kết quả của loader được nơi gọi đưa vào repository
@@ -7,7 +9,9 @@
 #   không module nào trong detection/ import Scapy
 #
 # input : config["detection"] (rule_files, disabled_files, disabled_sids)
-# output: list[Rule] theo thứ tự đọc, mỗi Rule đã có status valid/invalid/unsupported
+# output: list[Rule] theo thứ tự đọc, mỗi Rule đã có status valid/invalid/unsupported;
+#         rule bị disable_sids không có trong list; kiểu trả về không kèm thống kê,
+#         số liệu của lượt nạp nằm ở một dòng log tổng kết cuối load_rules
 #
 # việc của loader:
 #   - mỗi rule nằm trên một dòng; bỏ dòng trống và dòng bắt đầu bằng #
@@ -26,7 +30,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from idscore.detection.rule_parser import parse_rule
-from idscore.models.rule import RULE_INVALID, RULE_STATUSES, RULE_VALID, Rule
+from idscore.models.rule import (
+    RULE_INVALID,
+    RULE_STATUSES,
+    RULE_UNSUPPORTED,
+    RULE_VALID,
+    Rule,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +168,28 @@ def _warn_rule(rule: Rule) -> None:
     )
 
 
+# một dòng tổng kết dạng key=value, thứ tự key cố định để grep được trong log
+# warning khi có file được chọn mà không còn rule valid nào: IDS vẫn chạy nhưng sẽ không phát hiện gì
+# không có file nào được chọn (detection tắt chủ ý) thì giữ info, select_rule_files đã log rồi
+def _log_summary(stats: _LoadStats) -> None:
+    message = (
+        "Rules loaded: files=%d failed_files=%d valid=%d invalid=%d unsupported=%d disabled=%d"
+    )
+    args = (
+        stats.files_loaded,
+        stats.files_failed,
+        stats.rules[RULE_VALID],
+        stats.rules[RULE_INVALID],
+        stats.rules[RULE_UNSUPPORTED],
+        stats.rules_disabled,
+    )
+    files_selected = stats.files_loaded + stats.files_failed
+    if files_selected and not stats.rules[RULE_VALID]:
+        logger.warning(message, *args)
+    else:
+        logger.info(message, *args)
+
+
 # nạp mọi rule từ các file trong config["detection"]
 # trả về cả rule invalid và unsupported, giữ thứ tự file rồi thứ tự dòng;
 # lọc lấy rule valid là việc của repository
@@ -201,6 +233,7 @@ def load_rules(detection_cfg: dict[str, Any]) -> list[Rule]:
 
     # sid không khớp rule nào thường là gõ sai
     for sid in sorted(disabled_sids - matched_sids):
-        logger.warning("sid %d in detection.disabled_sids matches no rule", sid)
+        logger.warning("sid %d in detection.disabled_sids matches no loaded rule", sid)
 
+    _log_summary(stats)
     return loaded
