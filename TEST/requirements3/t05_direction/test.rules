@@ -1,0 +1,4 @@
+# T05: cùng content HTTP/1. (có trong cả request lẫn response), chỉ khác direction
+alert tcp any any -> any 8000 (msg:"T05 R1 -> to port 8000"; content:"HTTP/1."; sid:3050001; rev:1;)
+alert tcp any 8000 -> any any (msg:"T05 R2 -> from port 8000"; content:"HTTP/1."; sid:3050002; rev:1;)
+alert tcp any 8000 <> any any (msg:"T05 R3 <> port 8000"; content:"HTTP/1."; sid:3050003; rev:1;)
