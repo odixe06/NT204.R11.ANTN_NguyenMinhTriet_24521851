@@ -1,5 +1,5 @@
 # file này là Rule Matching Engine: kiểm tra một Rule có khớp một Event hay không
-# hợp đồng của module; match() đã có khung, header đã so khớp, các nhóm còn lại đang điền dần
+# hợp đồng của module; match() đã có khung, đã so khớp header, flags, dsize; flow và content đang điền dần
 #
 # chiều phụ thuộc: matcher chỉ dùng idscore.models (Rule, Event, FlowContext, ContentMatch);
 # matcher KHÔNG import generator, không import Scapy
@@ -24,6 +24,11 @@ from idscore.models.detection import ContentMatch
 from idscore.models.event import Event
 from idscore.models.flow import FlowContext
 from idscore.models.rule import (
+    DSIZE_EQ,
+    DSIZE_GT,
+    DSIZE_LT,
+    DSIZE_RANGE,
+    DSIZE_RANGE_INCL,
     RULE_DIR_BI,
     RULE_PROTO_IP,
     PortRange,
@@ -31,6 +36,14 @@ from idscore.models.rule import (
 )
 
 TRANSPORT_PROTOCOLS = ("TCP", "UDP")
+
+# tên cờ do TCPParser sinh ra (event.tcp_flags, ví dụ "SYN-ACK") -> ký hiệu Snort trong rule.flags
+# C là CWR và E là ECE theo quy ước tôi biết của Snort, chưa chắc đúng cho mọi phiên bản
+FLAG_SYMBOLS = {
+    "FIN": "F", "SYN": "S", "RST": "R", "PSH": "P",
+    "ACK": "A", "URG": "U", "CWR": "C", "ECE": "E",
+}
+TCP_FLAG_SEPARATOR = "-"
 
 
 # hàm công khai duy nhất: rule khớp event thì trả danh sách ContentMatch (rỗng nếu rule không có
@@ -102,12 +115,64 @@ def _port_matches(ports: PortRange | None, port: int | None) -> bool:
 
 
 # các nhóm sau: thân hàm tạm, True nghĩa là không loại; được điền ở các bước tiếp theo
+# tcp_flags của event -> frozenset ký hiệu Snort
+# None khi không phải TCP hoặc có tên cờ lạ (dữ liệu không đáng tin); "" là gói không mang cờ nào
+def _event_flags(event: Event) -> frozenset[str] | None:
+    text = event.tcp_flags
+    if not isinstance(text, str):
+        return None
+    if not text:
+        return frozenset()
+    symbols = [FLAG_SYMBOLS.get(name) for name in text.split(TCP_FLAG_SEPARATOR)]
+    if None in symbols:
+        return None
+    return frozenset(symbols)
+
+
+# R là tập cờ của rule, P là tập cờ của packet (ngữ nghĩa theo tài liệu Snort):
+#   không modifier: P == R (flags:0 có R rỗng nên chỉ khớp gói không cờ)
+#   +: R <= P   *: R & P khác rỗng
+#   !: chọn "không cờ nào của rule được bật" (R & P rỗng), sát câu chữ tài liệu nhất;
+#      tài liệu hiểu được theo hai cách (cách kia là P != R), chưa chắc Snort cài đặt cách nào
 def _match_flags(rule: Rule, event: Event) -> bool:
-    return True
+    if rule.flags is None:
+        return True
+    packet = _event_flags(event)
+    if packet is None:
+        return False
+    flags, modifier = rule.flags, rule.flags_modifier
+    if modifier is None:
+        return packet == flags
+    if modifier == "+":
+        return flags <= packet
+    if modifier == "*":
+        return bool(flags & packet)
+    if modifier == "!":
+        return not (flags & packet)
+    return False
 
 
+# kích thước lấy từ len(payload), cùng nguồn với content để dsize và offset/depth luôn nhất quán
 def _match_dsize(rule: Rule, event: Event) -> bool:
-    return True
+    dsize = rule.dsize
+    if dsize is None:
+        return True
+    if not isinstance(event.payload, bytes):
+        return False
+    size, low, high = len(event.payload), dsize.low, dsize.high
+    if dsize.op == DSIZE_EQ:
+        return size == low
+    if dsize.op == DSIZE_GT:
+        return size > low
+    if dsize.op == DSIZE_LT:
+        return size < low
+    if high is None:  # dạng range mà thiếu high: parser không sinh ra, phòng thủ
+        return False
+    if dsize.op == DSIZE_RANGE:
+        return low < size < high
+    if dsize.op == DSIZE_RANGE_INCL:
+        return low <= size <= high
+    return False
 
 
 def _match_flow(rule: Rule, ctx: FlowContext | None) -> bool:

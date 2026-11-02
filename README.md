@@ -282,6 +282,12 @@ Flow bắt đầu giữa chừng, tức packet đầu không phải `SYN`, giữ
   tra cả `src_port` lẫn `dst_port` nên rule `<>` không bị sót, trả tập thừa theo thứ tự nạp; event
   không có transport TCP/UDP không có candidate nào. `stats()` và `describe()` (theo `sid`) phục vụ
   debug và báo cáo.
+- **Matcher: flags và dsize (quy ước của bài làm):** `flags` không modifier khớp khi tập cờ của packet
+  bằng đúng tập của rule (`flags:0` chỉ khớp gói không cờ nào); `+` khớp khi packet có đủ cờ của rule;
+  `*` khớp khi có ít nhất một cờ; `!` khớp khi **không cờ nào của rule được bật** (tài liệu Snort hiểu
+  được theo hai cách, cách còn lại là phủ định của trường hợp không modifier; chưa chắc Snort cài đặt
+  cách nào, `local.rules` không dùng `!`). `dsize` đo bằng `len(Event.payload)`; `<>` không gồm hai
+  đầu, `<=>` gồm hai đầu. Event thiếu dữ liệu mà rule cần thì không khớp.
 - Việc đánh `invalid` (ví dụ rule `ip` có port khác `any`) thuộc Rule Parser & Validator,
   loader chỉ đọc file và chuyển từng dòng sang parser.
 
