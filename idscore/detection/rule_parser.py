@@ -1,5 +1,5 @@
 # file này là Rule Parser & Validator: chuyển một dòng rule thành một Rule
-# hợp đồng của module; Phase 3 đang viết dần phần parse (hiện có: khung, tách header/options, parse header, identification, content)
+# hợp đồng của module; Phase 3 đang viết dần phần parse (hiện có: khung, tách header/options, parse header, options, validator)
 #
 # chiều phụ thuộc: rule_parser chỉ dùng idscore.models.rule, không import module khác trong detection/
 #
@@ -34,7 +34,15 @@ from idscore.models.rule import (
     RULE_PROTO_UDP,
     RULE_UNSUPPORTED,
     RULE_VALID,
+    DSIZE_EQ,
+    DSIZE_GT,
+    DSIZE_LT,
+    DSIZE_RANGE,
+    DSIZE_RANGE_INCL,
+    FLOW_TO_CLIENT,
+    FLOW_TO_SERVER,
     Content,
+    DSize,
     PortRange,
     Rule,
 )
@@ -73,6 +81,54 @@ KEYWORD_NOCASE = "nocase"
 # modifier số của content; depth và within phải lớn hơn 0, offset và distance được âm
 CONTENT_INT_MODIFIERS = ("offset", "depth", "distance", "within")
 POSITIVE_MODIFIERS = frozenset({"depth", "within"})
+
+FLAG_LETTERS = frozenset("FSRPAUCE")
+FLAG_NONE = "0"
+FLAG_MODIFIERS = "+*!"
+FLAG_MASK_SEPARATOR = ","
+DSIZE_NUMBER = re.compile(r"[0-9]+")
+DSIZE_COMPARE = re.compile(r"([<>])([0-9]+)")
+DSIZE_RANGE_PATTERN = re.compile(r"([0-9]+)(<>|<=>)([0-9]+)")
+# Snort 3 còn có >=, <=, !; model DSize không biểu diễn được nên xếp unsupported thay vì lỗi gõ
+DSIZE_UNSUPPORTED_PREFIXES = (">=", "<=", "!")
+FLOW_SEPARATOR = ","
+FLOW_DIRECTION_WORDS = {
+    "to_server": FLOW_TO_SERVER,
+    "from_client": FLOW_TO_SERVER, # bí danh cùng nghĩa
+    "to_client": FLOW_TO_CLIENT,
+    "from_server": FLOW_TO_CLIENT,
+}
+FLOW_STATE_WORDS = {"established": True, "not_established": False}
+FLOW_UNSUPPORTED_WORDS = frozenset(
+    {"stateless", "no_stream", "only_stream", "no_frag", "only_frag"}
+)
+
+# keyword nhận diện và đọc được (identification, content, packet, flow)
+SUPPORTED_KEYWORDS = frozenset(
+    {"msg", "sid", "rev", "priority", "classtype", "content", "nocase", "offset", "depth",
+     "distance", "within", "flags", "dsize", "flow"}
+)
+# keyword mang thông tin, không ảnh hưởng so khớp: bỏ qua không báo lỗi, ghi trong README.
+# Muốn coi là unsupported thì để tập này rỗng; chọn bỏ qua vì gần như mọi rule chính thức có chúng
+IGNORED_KEYWORDS = frozenset({"reference", "metadata"})
+# keyword Snort có thật nhưng ngoài phạm vi; nhiều keyword đổi vùng tìm của content nên bỏ qua
+# sẽ sinh cảnh báo sai
+SNORT_UNSUPPORTED_KEYWORDS = frozenset(
+    {"pcre", "byte_test", "byte_jump", "byte_extract", "byte_math", "isdataat", "uricontent",
+     "urilen", "http_uri", "http_raw_uri", "http_header", "http_raw_header", "http_method",
+     "http_cookie", "http_raw_cookie", "http_client_body", "http_stat_code", "http_stat_msg",
+     "http_encode", "flowbits", "flowint", "threshold", "detection_filter", "fast_pattern",
+     "rawbytes", "gid", "ack", "seq", "ttl", "tos", "id", "ipopts", "fragbits", "fragoffset",
+     "sameip", "window", "itype", "icode", "icmp_id", "icmp_seq", "ip_proto", "stream_size",
+     "replace", "tag", "sd_pattern", "file_data", "pkt_data", "base64_decode", "base64_data",
+     "bufferlen", "startswith", "endswith", "service", "session", "react", "resp", "logto",
+     "content_list", "asn1", "cvs", "ftpbounce", "dce_iface", "dce_opnum", "dce_stub_data",
+     "sip_method", "sip_header", "sip_body", "ssl_state", "ssl_version", "tls_cert_common",
+     "dnp3_func", "modbus_func", "cip_attribute", "file_type", "file_id", "protected_content",
+     "hash", "luajit", "pcre2", "stream_reassemble", "attribute_table", "activates",
+     "activated_by", "count", "ack_win", "rpc", "dns_query", "dns_type", "dns_opcode", "http_version",
+     "http_trailer", "http_param", "http_num_headers", "http_header_test", "http_true_ip"}
+)
 
 
 # bộ ghi lỗi của một lần parse: các bước chỉ ghi lỗi vào đây và đi tiếp, không return sớm,
@@ -377,12 +433,131 @@ def _opt_classtype(option: "_Option", rule: Rule, problems: _Problems) -> None:
     rule.classtype = option.value
 
 
-IDENTIFICATION_PARSERS = {
+
+
+# flags:SA, flags:A+, flags:+A, flags:0; chỉ lưu tập cờ của rule dạng ký hiệu Snort,
+# việc đổi event.tcp_flags (SYN-ACK) sang ký hiệu này là của matcher
+# nhận modifier ở đầu hoặc cuối vì chưa chắc Snort chấp nhận những vị trí nào
+def _opt_flags(option: "_Option", rule: Rule, problems: _Problems) -> None:
+    prefix = f"option #{option.index} (flags)"
+    value = option.value
+    if not value:
+        problems.add_invalid(f"{prefix}: needs a value")
+        return
+    if FLAG_MASK_SEPARATOR in value:
+        problems.add_unsupported(f"{prefix}: mask after ',' is not supported, got {value!r}")
+        return
+    if rule.protocol is not None and rule.protocol != RULE_PROTO_TCP:
+        problems.add_invalid(f"{prefix}: only valid for a tcp rule, rule protocol is {rule.protocol}")
+        return
+
+    modifier = None
+    if value[0] in FLAG_MODIFIERS:
+        modifier, value = value[0], value[1:]
+    elif value[-1] in FLAG_MODIFIERS:
+        modifier, value = value[-1], value[:-1]
+    letters = value.upper()
+    if not letters or any(char in FLAG_MODIFIERS for char in letters):
+        problems.add_invalid(f"{prefix}: {option.value!r} has a missing letter or more than one modifier")
+        return
+    if letters == FLAG_NONE:
+        flags = frozenset()
+    elif len(set(letters)) != len(letters):
+        problems.add_invalid(f"{prefix}: repeated flag in {option.value!r}")
+        return
+    elif not set(letters) <= FLAG_LETTERS:
+        problems.add_invalid(
+            f"{prefix}: {option.value!r} has a letter outside {''.join(sorted(FLAG_LETTERS))} "
+            f"(or '{FLAG_NONE}' mixed with other flags)"
+        )
+        return
+    else:
+        flags = frozenset(letters)
+    rule.flags = flags
+    rule.flags_modifier = modifier
+
+
+# dsize:N, >N, <N, N<>M (khoảng mở), N<=>M (khoảng đóng); số từ 0 đến 65535
+def _opt_dsize(option: "_Option", rule: Rule, problems: _Problems) -> None:
+    prefix = f"option #{option.index} (dsize)"
+    value = option.value
+    if not value:
+        problems.add_invalid(f"{prefix}: needs a value")
+        return
+    if value.startswith(DSIZE_UNSUPPORTED_PREFIXES):
+        problems.add_unsupported(f"{prefix}: {value!r} is not supported, use N, >N, <N, N<>M or N<=>M")
+        return
+
+    if DSIZE_NUMBER.fullmatch(value):
+        dsize = DSize(DSIZE_EQ, int(value))
+    elif DSIZE_COMPARE.fullmatch(value):
+        sign, number = DSIZE_COMPARE.fullmatch(value).groups()
+        dsize = DSize(DSIZE_GT if sign == ">" else DSIZE_LT, int(number))
+    elif DSIZE_RANGE_PATTERN.fullmatch(value):
+        low, op, high = DSIZE_RANGE_PATTERN.fullmatch(value).groups()
+        dsize = DSize(DSIZE_RANGE if op == "<>" else DSIZE_RANGE_INCL, int(low), int(high))
+        if dsize.low > dsize.high or (op == "<>" and dsize.low == dsize.high):
+            problems.add_invalid(f"{prefix}: {value!r} is an empty range")
+            return
+    else:
+        problems.add_invalid(f"{prefix}: {value!r} is not N, >N, <N, N<>M or N<=>M")
+        return
+
+    if not all(0 <= n <= PORT_MAX for n in (dsize.low, dsize.high or 0)):
+        problems.add_invalid(f"{prefix}: {value!r} is outside 0-{PORT_MAX}")
+        return
+    rule.dsize = dsize
+
+
+# flow:to_server,established; from_client/from_server là bí danh của to_server/to_client
+def _opt_flow(option: "_Option", rule: Rule, problems: _Problems) -> None:
+    prefix = f"option #{option.index} (flow)"
+    if not option.value:
+        problems.add_invalid(f"{prefix}: needs a value")
+        return
+    directions: set[str] = set()
+    states: set[bool] = set()
+    seen: set[str] = set()
+    errors = 0
+    for word in (part.strip() for part in option.value.split(FLOW_SEPARATOR)):
+        if not word:
+            problems.add_invalid(f"{prefix}: empty item in {option.value!r}")
+            errors += 1
+        elif word in seen:
+            problems.add_invalid(f"{prefix}: {word!r} is repeated")
+            errors += 1
+        elif word in FLOW_DIRECTION_WORDS:
+            directions.add(FLOW_DIRECTION_WORDS[word])
+        elif word in FLOW_STATE_WORDS:
+            states.add(FLOW_STATE_WORDS[word])
+        elif word in FLOW_UNSUPPORTED_WORDS:
+            problems.add_unsupported(f"{prefix}: {word!r} is not supported")
+            errors += 1
+        else:
+            problems.add_invalid(f"{prefix}: unknown item {word!r}")
+            errors += 1
+        seen.add(word)
+    if len(directions) > 1:
+        problems.add_invalid(f"{prefix}: to_server and to_client cannot be combined")
+        errors += 1
+    if len(states) > 1:
+        problems.add_invalid(f"{prefix}: established and not_established cannot be combined")
+        errors += 1
+    if errors:
+        return
+    rule.flow_direction = next(iter(directions), None)
+    rule.flow_established = next(iter(states), None)
+
+
+OPTION_PARSERS = {
     "msg": _opt_msg,
     "sid": _opt_sid,
     "rev": _opt_rev,
     "priority": _opt_priority,
     "classtype": _opt_classtype,
+    "flags": _opt_flags,
+    "dsize": _opt_dsize,
+    "flow": _opt_flow,
 }
 
 
@@ -479,10 +654,13 @@ def _parse_options(options: list["_Option"], rule: Rule, problems: _Problems) ->
     ordinal = 0
     for option in options:
         keyword = option.keyword
-        if keyword in IDENTIFICATION_PARSERS:
-            if keyword not in seen:
+        if keyword in OPTION_PARSERS:
+            if keyword in seen:
+                # giữ giá trị đầu, nhưng rule có hai sid/msg/... là rule viết sai nên báo lỗi
+                problems.add_invalid(f"option #{option.index} ({keyword}): repeated")
+            else:
                 seen.add(keyword)
-                IDENTIFICATION_PARSERS[keyword](option, rule, problems)
+                OPTION_PARSERS[keyword](option, rule, problems)
         elif keyword == KEYWORD_CONTENT:
             if builder is not None:
                 _finish_content(builder, rule, problems)
@@ -490,9 +668,20 @@ def _parse_options(options: list["_Option"], rule: Rule, problems: _Problems) ->
             builder = _start_content(option, ordinal, problems)
         elif keyword == KEYWORD_NOCASE or keyword in CONTENT_INT_MODIFIERS:
             _apply_modifier(builder, option, problems)
-        # keyword khác (flags, dsize, flow, ngoài phạm vi): các bước sau
+        elif keyword in IGNORED_KEYWORDS:
+            continue
+        elif keyword in SNORT_UNSUPPORTED_KEYWORDS:
+            problems.add_unsupported(f"option #{option.index} ({keyword}): keyword is not supported")
+        else:
+            problems.add_invalid(f"option #{option.index} ({keyword}): unknown keyword")
     if builder is not None:
         _finish_content(builder, rule, problems)
+
+    # sid và msg bắt buộc (quy ước của bài làm); chỉ báo thiếu khi keyword không xuất hiện,
+    # keyword có mặt mà value sai đã có lý do riêng
+    for required in ("sid", "msg"):
+        if required not in seen:
+            problems.add_invalid(f"missing required option '{required}'")
 
 
 # interface mà loader gọi cho từng dòng rule
@@ -509,7 +698,6 @@ def parse_rule(line: str, source_file: str, line_no: int) -> Rule:
     if header:  # header rỗng đã bị ghi lỗi ở _split_header_options
         _parse_header(header, rule, problems)
     _parse_options(options, rule, problems)
-    # các bước sau (flags, dsize, flow, validator) ghi thêm lỗi vào problems trước khi chốt status
 
     rule.status = problems.status
     rule.reasons = problems.reasons

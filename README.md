@@ -258,6 +258,22 @@ Flow bắt đầu giữa chừng, tức packet đầu không phải `SYN`, giữ
     trước mọi content hoặc lặp trên cùng content là `invalid`.
   - Parser còn chặn: `depth`/`within` nhỏ hơn độ dài pattern, `distance`/`within` trên content đầu
     tiên, và `offset`/`depth` kết hợp `distance`/`within` trên cùng content (cả ba là `invalid`).
+- **Flags, dsize, flow (quy ước của bài làm):**
+  - `flags` nhận ký tự `F S R P A U C E` (chữ hoa hoặc thường), `0` là không cờ nào, modifier
+    `+ * !` ở đầu hoặc cuối (chưa chắc Snort nhận những vị trí nào). Phần mask sau dấu phẩy
+    (`flags:SF,12`) là `unsupported`; cờ lặp, ký tự lạ, `0` kèm cờ khác, nhiều modifier, hoặc rule
+    không phải `tcp` là `invalid`.
+  - `dsize` nhận `N`, `>N`, `<N`, `N<>M` (khoảng mở), `N<=>M` (khoảng đóng), số 0 đến 65535;
+    `>=`, `<=`, `!` là `unsupported`.
+  - `flow` nhận `to_server`/`to_client` (`from_client`/`from_server` là bí danh) và `established`/
+    `not_established`; `stateless`, `no_stream`, `only_stream`, `no_frag`, `only_frag` là `unsupported`;
+    mâu thuẫn, phần rỗng, lặp, từ lạ là `invalid`.
+- **Keyword:** keyword Snort ngoài phạm vi (`pcre`, `byte_test`, `http_uri`, `flowbits`, `threshold`,
+  `fast_pattern`, `gid`, ...) là `unsupported` vì nhiều keyword đổi vùng tìm của content, bỏ qua sẽ
+  sinh cảnh báo sai; keyword không phải của Snort là `invalid`. **Riêng `reference` và `metadata`
+  được bỏ qua** vì chỉ mang thông tin và có mặt trong gần như mọi rule chính thức. Keyword lặp
+  (trừ `content` và modifier) là `invalid`; thiếu `sid` hoặc `msg` là `invalid`; rule chỉ có header,
+  `msg`, `sid` vẫn `valid`.
 - Việc đánh `invalid` (ví dụ rule `ip` có port khác `any`) thuộc Rule Parser & Validator,
   loader chỉ đọc file và chuyển từng dòng sang parser.
 
