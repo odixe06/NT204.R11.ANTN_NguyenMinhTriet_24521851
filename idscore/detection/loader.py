@@ -1,6 +1,6 @@
 # file này là Rule Loader: đọc các file .rules và đưa từng dòng sang rule_parser
 # hàm công khai duy nhất là load_rules(config["detection"]) -> list[Rule]; các hàm còn lại là nội bộ
-# (select_rule_files, _read_rule_file, _split_rule_lines, _parse_safely, _warn_rule)
+# (_select_rule_files, _read_rule_file, _split_rule_lines, _parse_safely, _warn_rule)
 # nơi gọi (cli.py) chỉ cần gọi load_rules một lần lúc khởi động rồi đưa kết quả cho repository
 #
 # chiều phụ thuộc (một chiều, không import ngược):
@@ -10,7 +10,7 @@
 #
 # input : config["detection"] (rule_files, disabled_files, disabled_sids)
 # output: list[Rule] theo thứ tự đọc, mỗi Rule đã có status valid/invalid/unsupported;
-#         rule bị disable_sids không có trong list; kiểu trả về không kèm thống kê,
+#         rule bị disabled_sids không có trong list; kiểu trả về không kèm thống kê,
 #         số liệu của lượt nạp nằm ở một dòng log tổng kết cuối load_rules
 #
 # việc của loader:
@@ -47,7 +47,7 @@ COMMENT_PREFIX = "#"
 # chọn danh sách file .rules cần nạp từ config["detection"]
 # nhận dict chứ không tự gọi load_config, để testcase truyền được config riêng
 # không kiểm tra file có tồn tại, việc mở file và mọi lỗi file gom ở một chỗ khi đọc file
-def select_rule_files(detection_cfg: dict[str, Any]) -> list[str]:
+def _select_rule_files(detection_cfg: dict[str, Any]) -> list[str]:
     # normpath để "./rules/a.rules" và "rules/a.rules" được coi là cùng một file
     rule_files = [os.path.normpath(path) for path in detection_cfg["rule_files"]]
     disabled = {os.path.normpath(path) for path in detection_cfg["disabled_files"]}
@@ -142,7 +142,15 @@ class _LoadStats:
 # với input không tin cậy, nên một dòng lỗi không được làm hỏng việc nạp cả bộ rule
 def _parse_safely(text: str, source_file: str, line_no: int) -> Rule:
     try:
-        return parse_rule(text, source_file, line_no)
+        rule = parse_rule(text, source_file, line_no)
+        # status ngoài RULE_STATUSES (ví dụ "Valid") sẽ làm bộ đếm KeyError, nên đổi thành invalid;
+        # giữ nguyên rule để sid vẫn được disabled_sids lọc
+        if not isinstance(rule, Rule):
+            raise TypeError(f"parse_rule returned {type(rule).__name__}, expected Rule")
+        if rule.status not in RULE_STATUSES:
+            rule.reasons.append(f"rule_parser returned unknown status {rule.status!r}")
+            rule.status = RULE_INVALID
+        return rule
     except Exception as exc:
         logger.error("Rule %s:%d could not be parsed: %r", source_file, line_no, exc)
         logger.info("Traceback of rule %s:%d", source_file, line_no, exc_info=True)
@@ -170,7 +178,7 @@ def _warn_rule(rule: Rule) -> None:
 
 # một dòng tổng kết dạng key=value, thứ tự key cố định để grep được trong log
 # warning khi có file được chọn mà không còn rule valid nào: IDS vẫn chạy nhưng sẽ không phát hiện gì
-# không có file nào được chọn (detection tắt chủ ý) thì giữ info, select_rule_files đã log rồi
+# không có file nào được chọn (detection tắt chủ ý) thì giữ info, _select_rule_files đã log rồi
 def _log_summary(stats: _LoadStats) -> None:
     message = (
         "Rules loaded: files=%d failed_files=%d valid=%d invalid=%d unsupported=%d disabled=%d"
@@ -199,7 +207,7 @@ def load_rules(detection_cfg: dict[str, Any]) -> list[Rule]:
     matched_sids: set[int] = set()
     loaded: list[Rule] = []
 
-    for path in select_rule_files(detection_cfg):
+    for path in _select_rule_files(detection_cfg):
         data = _read_rule_file(path)
         if data is None:
             stats.files_failed += 1

@@ -8,6 +8,9 @@
 # output: candidates(event) -> list[Rule], tập ứng viên theo protocol (IP, TCP, UDP) và port,
 #         giữ thứ tự nạp; đây là tập thừa, matcher mới quyết định match thật
 #
+# việc của Phase 4: loader không kiểm tra sid trùng giữa các rule, repository phải xử lý khi
+# nhận rule valid (ví dụ cảnh báo và chỉ giữ một rule), nếu không một sid sinh hai Detection Event
+#
 # repository KHÔNG được:
 #   - so khớp content, flags, dsize hay flow (việc của matcher)
 #   - parse rule hoặc đọc file (việc của rule_parser, loader)

@@ -230,6 +230,11 @@ Flow bắt đầu giữa chừng, tức packet đầu không phải `SYN`, giữ
   `content:"#"`) được giữ nguyên.
 - **Giới hạn:** không hỗ trợ nối dòng bằng `\` cuối dòng như Snort 2 cho phép. Rule viết kiểu
   đó bị parser đánh `invalid`, không làm dừng chương trình.
+- **Cú pháp options (quy ước của bài làm):** header là phần trước `(` đầu tiên, options nằm giữa
+  `(` đầu và `)` cuối. Options tách ở `;` nằm ngoài ngoặc kép, `\"` không đóng ngoặc kép; `;`
+  chưa escape bên trong ngoặc kép được chấp nhận (chưa chắc Snort 2 có chấp nhận). Keyword
+  so khớp chính xác, chữ thường. Parser ghi đủ lỗi của rule rồi mới chốt status: có lỗi cú
+  pháp thì `invalid`, chỉ có lỗi ngoài phạm vi thì `unsupported`.
 - Việc đánh `invalid` (ví dụ rule `ip` có port khác `any`) thuộc Rule Parser & Validator,
   loader chỉ đọc file và chuyển từng dòng sang parser.
 
