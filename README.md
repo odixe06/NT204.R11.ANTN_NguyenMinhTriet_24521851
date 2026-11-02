@@ -224,6 +224,12 @@ Flow bắt đầu giữa chừng, tức packet đầu không phải `SYN`, giữ
   `<>`, `msg`/`sid`/`rev`, `content` có và không `nocase`, `offset`, `depth`, hai `content` với
   `distance`/`within`, `flags`, `dsize` (`<>`, `<=>`, `0`), `flow` (`to_server`, `to_client`,
   `established`, `not_established`), `classtype`, `priority`.
+- File được đọc dạng bytes, bỏ BOM UTF-8 đầu file, tách dòng theo `\n`/`\r\n` nên `line_no` khớp số
+  dòng trong editor. Mỗi dòng được decode UTF-8 riêng: dòng sai encoding chỉ làm rule đó `invalid`,
+  các dòng khác vẫn được nạp. Chỉ dòng **bắt đầu** bằng `#` là comment, `#` giữa dòng (như
+  `content:"#"`) được giữ nguyên.
+- **Giới hạn:** không hỗ trợ nối dòng bằng `\` cuối dòng như Snort 2 cho phép. Rule viết kiểu
+  đó bị parser đánh `invalid`, không làm dừng chương trình.
 - Việc đánh `invalid` (ví dụ rule `ip` có port khác `any`) thuộc Rule Parser & Validator,
   loader chỉ đọc file và chuyển từng dòng sang parser.
 
