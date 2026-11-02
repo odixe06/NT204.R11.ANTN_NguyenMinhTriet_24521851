@@ -288,6 +288,18 @@ Flow bắt đầu giữa chừng, tức packet đầu không phải `SYN`, giữ
   được theo hai cách, cách còn lại là phủ định của trường hợp không modifier; chưa chắc Snort cài đặt
   cách nào, `local.rules` không dùng `!`). `dsize` đo bằng `len(Event.payload)`; `<>` không gồm hai
   đầu, `<=>` gồm hai đầu. Event thiếu dữ liệu mà rule cần thì không khớp.
+- **Matcher: flow và content (quy ước và giới hạn):**
+  - `to_server`/`to_client` dựa vào `FlowContext.from_client`; flow bắt giữa phiên (không thấy SYN) có
+    `from_client` là `None` nên rule có chiều không khớp, và TCP bắt giữa phiên không bao giờ thỏa
+    `established`. `established` của TCP là `state == ESTABLISHED` (không tính `CLOSING`, nên gói FIN và
+    dữ liệu sau FIN đầu tiên không khớp; chưa chắc Snort xử lý giai đoạn đóng thế nào); của UDP là flow đã
+    có packet cả hai chiều.
+  - Content tìm trong `Event.payload`; `nocase` chỉ đổi chữ ASCII. Content không có modifier vị trí tìm trên
+    toàn payload; `offset`/`depth` tính `[offset, offset + depth)`; `distance`/`within` tính từ cuối lần khớp
+    trước, `within` đo từ chỗ bắt đầu tìm (`cursor + distance`), cách hiểu này chưa chắc giống Snort khi
+    `distance` khác 0. `offset`/`distance` âm được kẹp về 0.
+  - **Không backtracking:** mỗi content lấy lần khớp đầu tiên trong cửa sổ, nên có thể sót khi pattern đầu
+    xuất hiện nhiều lần.
 - Việc đánh `invalid` (ví dụ rule `ip` có port khác `any`) thuộc Rule Parser & Validator,
   loader chỉ đọc file và chuyển từng dòng sang parser.
 

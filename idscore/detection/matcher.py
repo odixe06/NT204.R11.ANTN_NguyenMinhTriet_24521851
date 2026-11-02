@@ -1,5 +1,5 @@
 # file này là Rule Matching Engine: kiểm tra một Rule có khớp một Event hay không
-# hợp đồng của module; match() đã có khung, đã so khớp header, flags, dsize; flow và content đang điền dần
+# hợp đồng của module; match() đã có khung, đã so khớp đủ header, flags, dsize, flow, content
 #
 # chiều phụ thuộc: matcher chỉ dùng idscore.models (Rule, Event, FlowContext, ContentMatch);
 # matcher KHÔNG import generator, không import Scapy
@@ -22,8 +22,11 @@ from ipaddress import IPv4Network, ip_address
 
 from idscore.models.detection import ContentMatch
 from idscore.models.event import Event
-from idscore.models.flow import FlowContext
+from idscore.models.flow import STATE_ESTABLISHED, FlowContext
 from idscore.models.rule import (
+    FLOW_TO_CLIENT,
+    FLOW_TO_SERVER,
+    Content,
     DSIZE_EQ,
     DSIZE_GT,
     DSIZE_LT,
@@ -175,9 +178,77 @@ def _match_dsize(rule: Rule, event: Event) -> bool:
     return False
 
 
+# flow: FlowContext chỉ đưa dữ kiện, việc diễn giải to_server/established là ở đây
+# rule không có flow thì True; có flow mà ctx None thì False (không chứng minh được chiều/trạng thái)
 def _match_flow(rule: Rule, ctx: FlowContext | None) -> bool:
+    if rule.flow_direction is None and rule.flow_established is None:
+        return True
+    if ctx is None:
+        return False
+
+    # from_client None (capture bắt giữa phiên, không thấy SYN) thì rule có chiều không khớp
+    if rule.flow_direction == FLOW_TO_SERVER and ctx.from_client is not True:
+        return False
+    if rule.flow_direction == FLOW_TO_CLIENT and ctx.from_client is not False:
+        return False
+
+    if rule.flow_established is not None:
+        established = _is_established(ctx)
+        return established is not None and established == rule.flow_established
     return True
 
 
+# TCP: state ESTABLISHED. CLOSING không tính vì tracker vào CLOSING được từ NEW/HANDSHAKE khi gặp
+# FIN nên không chứng minh handshake đã xong (gói FIN và dữ liệu sau FIN đầu tiên không khớp
+# established; chưa chắc Snort xử lý giai đoạn đóng kết nối thế nào)
+# UDP: flow đã có packet cả hai chiều (số đếm đã gồm packet hiện tại vì context_of gọi sau process)
+# protocol khác: None, không khớp cả established lẫn not_established
+def _is_established(ctx: FlowContext) -> bool | None:
+    if ctx.protocol == "TCP":
+        return ctx.state == STATE_ESTABLISHED
+    if ctx.protocol == "UDP":
+        return ctx.fwd_packet_count > 0 and ctx.bwd_packet_count > 0
+    return None
+
+
+# content theo đúng thứ tự khai báo; cursor là vị trí kết thúc của content vừa khớp, để distance/within
+# tính tương đối. Mỗi content lấy lần khớp đầu tiên trong cửa sổ, không backtracking (Snort có thử
+# lại vị trí khác của content trước; bản này bỏ qua nên có thể sót khi pattern đầu xuất hiện nhiều lần)
 def _match_contents(rule: Rule, event: Event) -> list[ContentMatch] | None:
-    return []
+    if not rule.contents:
+        return []
+    payload = event.payload
+    if not isinstance(payload, bytes):
+        return None
+    # bytes.lower() chỉ đổi chữ ASCII nên không lệch vị trí byte; tính một lần cho cả rule
+    lowered = payload.lower() if any(c.nocase for c in rule.contents) else payload
+
+    matches: list[ContentMatch] = []
+    cursor = 0
+    for content in rule.contents:
+        if not content.pattern:
+            return None
+        start, end = _search_window(content, cursor, len(payload))
+        haystack, needle = (lowered, content.pattern.lower()) if content.nocase else (payload, content.pattern)
+        found = haystack.find(needle, start, end)
+        if found < 0:
+            return None
+        cursor = found + len(content.pattern)
+        matches.append(ContentMatch(pattern=content.pattern, buffer="payload", start=found, end=cursor))
+    return matches
+
+
+# parser đã cấm trộn offset/depth với distance/within và cấm relative ở content đầu nên chỉ có hai nhánh:
+#   tuyệt đối: [offset, offset + depth); không modifier thì tìm trên toàn payload
+#   tương đối: [cursor + distance, cursor + distance + within); within tính từ chỗ bắt đầu tìm, đây là
+#              cách hiểu của tôi, chưa chắc Snort không tính within thẳng từ cuối lần khớp trước
+#              (local.rules chỉ dùng distance:0 nên hai cách cho cùng kết quả)
+# offset/distance có thể âm nên kẹp vào [0, size], tránh chỉ số âm của Python
+def _search_window(content: Content, cursor: int, size: int) -> tuple[int, int]:
+    if content.distance is None and content.within is None:
+        start = content.offset or 0
+        end = start + content.depth if content.depth is not None else size
+    else:
+        start = cursor + (content.distance or 0)
+        end = start + content.within if content.within is not None else size
+    return max(0, min(start, size)), max(0, min(end, size))
