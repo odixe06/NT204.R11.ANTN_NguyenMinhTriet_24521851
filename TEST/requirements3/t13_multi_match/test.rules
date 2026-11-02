@@ -1,0 +1,5 @@
+# T13: 3 rule cùng khớp packet GET, nằm ở 3 bucket khác nhau của indexer (exact, any, ip), 1 rule đối chứng
+alert tcp any any -> any 8000 (msg:"T13 R1 exact port 8000 GET"; content:"GET"; sid:3130001; rev:1;)
+alert tcp any any -> any any (msg:"T13 R2 any to_server established"; flow:to_server,established; sid:3130002; rev:1;)
+alert ip any any -> 127.0.0.1 any (msg:"T13 R3 ip HTTP/1.1"; content:"HTTP/1.1"; sid:3130003; rev:1;)
+alert tcp any any -> any 8000 (msg:"T13 R4 POST never matches"; content:"POST"; sid:3130004; rev:1;)
