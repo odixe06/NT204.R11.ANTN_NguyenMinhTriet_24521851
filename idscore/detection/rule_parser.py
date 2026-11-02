@@ -14,6 +14,8 @@
 #
 # việc của rule_parser:
 #   - parse IP, port, content (đổi |hex| sang bytes) một lần, để matcher không parse lại
+#   - điền Rule.sid cả khi rule invalid/unsupported vì lý do khác, nếu sid đọc được,
+#     để loader tắt được rule hỏng bằng detection.disabled_sids
 #
 # rule_parser KHÔNG được:
 #   - raise exception ra ngoài vì một dòng sai

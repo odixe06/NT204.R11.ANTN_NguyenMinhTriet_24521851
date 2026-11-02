@@ -1,5 +1,5 @@
 # file này là Rule Loader: đọc các file .rules và đưa từng dòng sang rule_parser
-# hợp đồng của module; hiện mới có chọn file (select_rule_files), đọc file và tách dòng
+# hợp đồng của module; hàm công khai duy nhất là load_rules, các hàm còn lại là bước nội bộ
 #
 # chiều phụ thuộc (một chiều, không import ngược):
 #   loader -> rule_parser;  kết quả của loader được nơi gọi đưa vào repository
@@ -22,9 +22,11 @@
 
 import logging
 import os
+from dataclasses import dataclass, field
 from typing import Any
 
-from idscore.models.rule import RULE_INVALID, Rule
+from idscore.detection.rule_parser import parse_rule
+from idscore.models.rule import RULE_INVALID, RULE_STATUSES, RULE_VALID, Rule
 
 logger = logging.getLogger(__name__)
 
@@ -111,3 +113,94 @@ def _split_rule_lines(data: bytes, source_file: str) -> list[tuple[int, str] | R
             continue
         items.append((line_no, text))
     return items
+
+
+# bộ đếm của một lượt nạp, dùng cho dòng tổng kết
+@dataclass
+class _LoadStats:
+    files_loaded: int = 0
+    files_failed: int = 0
+    # số rule trả về theo từng status
+    rules: dict[str, int] = field(
+        default_factory=lambda: dict.fromkeys(RULE_STATUSES, 0)
+    )
+    # rule bị lọc bởi disabled_sids không còn trong kết quả nên phải đếm lúc lọc
+    rules_disabled: int = 0
+
+
+# gọi parse_rule cho một dòng; parser không được raise nhưng đây là ranh giới sang module khác
+# với input không tin cậy, nên một dòng lỗi không được làm hỏng việc nạp cả bộ rule
+def _parse_safely(text: str, source_file: str, line_no: int) -> Rule:
+    try:
+        return parse_rule(text, source_file, line_no)
+    except Exception as exc:
+        logger.error("Rule %s:%d could not be parsed: %r", source_file, line_no, exc)
+        logger.info("Traceback of rule %s:%d", source_file, line_no, exc_info=True)
+        return Rule(
+            source_file=source_file,
+            line_no=line_no,
+            raw=text,
+            status=RULE_INVALID,
+            reasons=[f"rule_parser raised {exc!r}"],
+        )
+
+
+# mỗi rule invalid/unsupported một dòng warning, chỉ ra rule nằm ở đâu và vì sao
+def _warn_rule(rule: Rule) -> None:
+    sid = f" (sid {rule.sid})" if rule.sid is not None else ""
+    logger.warning(
+        "Rule %s:%d%s is %s: %s",
+        rule.source_file,
+        rule.line_no,
+        sid,
+        rule.status,
+        "; ".join(rule.reasons) or "no reason given",
+    )
+
+
+# nạp mọi rule từ các file trong config["detection"]
+# trả về cả rule invalid và unsupported, giữ thứ tự file rồi thứ tự dòng;
+# lọc lấy rule valid là việc của repository
+def load_rules(detection_cfg: dict[str, Any]) -> list[Rule]:
+    stats = _LoadStats()
+    disabled_sids = set(detection_cfg["disabled_sids"])
+    matched_sids: set[int] = set()
+    loaded: list[Rule] = []
+
+    for path in select_rule_files(detection_cfg):
+        data = _read_rule_file(path)
+        if data is None:
+            stats.files_failed += 1
+            continue
+        stats.files_loaded += 1
+
+        for item in _split_rule_lines(data, path):
+            # Rule invalid từ bước tách dòng đã có đủ thông tin, không đưa lại cho parser
+            if isinstance(item, Rule):
+                rule = item
+            else:
+                line_no, text = item
+                rule = _parse_safely(text, path, line_no)
+
+            # lọc cả rule invalid để tắt được rule hỏng; sid None thì không lọc
+            if rule.sid is not None and rule.sid in disabled_sids:
+                matched_sids.add(rule.sid)
+                stats.rules_disabled += 1
+                logger.debug(
+                    "Rule %s:%d (sid %d) is disabled, skipped",
+                    rule.source_file,
+                    rule.line_no,
+                    rule.sid,
+                )
+                continue
+
+            if rule.status != RULE_VALID:
+                _warn_rule(rule)
+            stats.rules[rule.status] += 1
+            loaded.append(rule)
+
+    # sid không khớp rule nào thường là gõ sai
+    for sid in sorted(disabled_sids - matched_sids):
+        logger.warning("sid %d in detection.disabled_sids matches no rule", sid)
+
+    return loaded
