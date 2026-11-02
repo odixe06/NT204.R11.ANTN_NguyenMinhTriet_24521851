@@ -13,6 +13,9 @@ from idscore.capture.live import LiveCapture
 from idscore.capture.pcap import PcapCapture
 from idscore.config import ConfigError, load_config
 from idscore.decoder.decoder import Decoder
+from idscore.detection.engine import EvaluationEngine
+from idscore.detection.loader import load_rules
+from idscore.detection.repository import RuleRepository
 from idscore.flow.tracker import FlowTracker
 from idscore.models.event import (
     ACTION_DROP,
@@ -60,6 +63,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default="logs/flows.jsonl",
         help="JSON Lines file the flows are appended to.",
     )
+    # tham số detection-output -> file jsonl ghi các Detection Event (đầu vào của Alert/Logging ở bài 4)
+    parser.add_argument(
+        "--detection-output",
+        default="logs/detections.jsonl",
+        help="JSON Lines file the detection events are appended to.",
+    )
     # tham số log-file -> file .log ghi nội dung log
     parser.add_argument(
         "--log-file",
@@ -94,6 +103,15 @@ def build_pipeline(config: dict[str, Any]) -> Pipeline:
         # pipeline nhận config và truyền xuống app parser 
         build_app_parsers(config),
     )
+
+# dựng Core Engine một lần lúc khởi động (giai đoạn nạp, parse, index rule), trước vòng lặp packet
+def build_engine(config: dict[str, Any]) -> EvaluationEngine:
+    repository = RuleRepository(load_rules(config["detection"]))
+    if len(repository) == 0:
+        # phân biệt "không có rule" với "có rule nhưng không khớp"
+        logger.warning("No valid rule is indexed, detection will not report anything")
+    return EvaluationEngine(repository)
+
 
 # nếu xử lý một packet thất bại -> vẫn ghi message trong json L và gán MALFORMED
 def _fallback_event(
@@ -223,12 +241,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     # khởi tạo log ngay từ đầu để module có thể ghi vào 
     setup_logging(args.log_file) 
 
-    if Path(args.flow_output).resolve() == Path(args.output).resolve():
-        logger.error(
-            "--flow-output and --output must be different files, both are '%s'",
-            args.output,
-        )
-        return 1
+    # JsonlWriter mở file ở chế độ a: hai writer cùng một file sẽ trộn các schema khác nhau vào một chỗ
+    outputs = (
+        ("--output", args.output),
+        ("--flow-output", args.flow_output),
+        ("--detection-output", args.detection_output),
+    )
+    for i, (first_name, first_path) in enumerate(outputs):
+        for second_name, second_path in outputs[i + 1 :]:
+            if Path(first_path).resolve() == Path(second_path).resolve():
+                logger.error(
+                    "%s and %s must be different files, both are '%s'",
+                    first_name,
+                    second_name,
+                    first_path,
+                )
+                return 1
 
     try:
         config = load_config(args.config)
@@ -244,6 +272,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     decoder = Decoder()
     preprocessor = Preprocessor(config)
     tracker = FlowTracker(config)
+
+    # lỗi khởi động xảy ra trước khi mở file nên không để lại file output rỗng
+    # lỗi từng rule đã được loader chặn, exception lọt ra đây là lỗi lập trình: dừng hẳn thay vì
+    # chạy tiếp không có detection để người dùng tưởng không có cảnh báo nào
+    try:
+        engine = build_engine(config)
+    except Exception as exc:
+        logger.error("Cannot build the detection engine: %r", exc)
+        logger.info("Traceback of the detection engine", exc_info=True)
+        return 1
 
     packet_count = 0 # bộ đếm
     counts: Counter = Counter()
