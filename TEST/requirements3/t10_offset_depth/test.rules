@@ -1,0 +1,7 @@
+# T10: request bắt đầu bằng "GET /admin", admin nằm ở byte 5 đến 10
+alert tcp any any -> any 8000 (msg:"T10 GET offset 0 depth 3"; content:"GET"; offset:0; depth:3; sid:3100001; rev:1;)
+alert tcp any any -> any 8000 (msg:"T10 GET offset 1"; content:"GET"; offset:1; sid:3100002; rev:1;)
+alert tcp any any -> any 8000 (msg:"T10 admin offset 5 depth 5"; content:"admin"; offset:5; depth:5; sid:3100003; rev:1;)
+alert tcp any any -> any 8000 (msg:"T10 admin offset 6"; content:"admin"; offset:6; sid:3100004; rev:1;)
+alert tcp any any -> any 8000 (msg:"T10 admin depth 10"; content:"admin"; depth:10; sid:3100005; rev:1;)
+alert tcp any any -> any 8000 (msg:"T10 admin depth 9"; content:"admin"; depth:9; sid:3100006; rev:1;)
