@@ -1,5 +1,6 @@
 # file này là Rule Repository / Indexer: lưu các rule valid và chọn rule ứng viên cho một event
-# chưa có code, đây là hợp đồng để các phase sau làm theo
+# hợp đồng của module; hiện có: nhận rule, lọc rule valid, xử lý sid trùng, dựng index
+# (candidates(event) là bước sau)
 #
 # chiều phụ thuộc: repository chỉ dùng idscore.models (Rule, Event), không import matcher,
 # generator hay engine
@@ -8,10 +9,112 @@
 # output: candidates(event) -> list[Rule], tập ứng viên theo protocol (IP, TCP, UDP) và port,
 #         giữ thứ tự nạp; đây là tập thừa, matcher mới quyết định match thật
 #
-# việc của Phase 4: loader không kiểm tra sid trùng giữa các rule, repository phải xử lý khi
-# nhận rule valid (ví dụ cảnh báo và chỉ giữ một rule), nếu không một sid sinh hai Detection Event
+# loader không kiểm tra sid trùng giữa các rule nên repository xử lý khi nhận rule valid:
+# cảnh báo và giữ rule nạp trước, nếu không một sid sinh hai Detection Event
+#
+# index dựng một lần trong constructor, chỉ theo protocol và port (không theo IP: phần lớn rule dùng
+# any, index CIDR cần prefix tree mà lợi ích không đáng); bucket chỉ lưu số thứ tự nạp của rule
 #
 # repository KHÔNG được:
 #   - so khớp content, flags, dsize hay flow (việc của matcher)
 #   - parse rule hoặc đọc file (việc của rule_parser, loader)
 #   - sửa Rule sau khi đã index, hay sửa Event
+
+import logging
+from dataclasses import dataclass, field
+
+from idscore.models.rule import (
+    RULE_PROTO_IP,
+    RULE_PROTO_TCP,
+    RULE_PROTO_UDP,
+    RULE_VALID,
+    PortRange,
+    Rule,
+)
+
+logger = logging.getLogger(__name__)
+
+
+# index theo port của một protocol; mỗi rule vào đúng một bucket, giá trị là số thứ tự nạp
+@dataclass
+class _PortIndex:
+    exact: dict[int, list[int]] = field(default_factory=dict) # port đơn -> các rule
+    ranges: list[tuple[int, int, int]] = field(default_factory=list) # (low, high, rule)
+    any: list[int] = field(default_factory=list) # cả hai port đều any
+
+
+def _is_single(port: PortRange | None) -> bool:
+    return port is not None and port[0] == port[1]
+
+
+class RuleRepository:
+    def __init__(self, rules: list[Rule]) -> None:
+        self._rules: list[Rule] = [] # rule valid, vị trí trong list là thứ tự nạp
+        self._tcp = _PortIndex()
+        self._udp = _PortIndex()
+        self._ip_rules: list[int] = [] # rule ip khớp cả TCP lẫn UDP, port luôn any
+        self.skipped_not_valid = 0
+        self.duplicate_sid = 0
+
+        by_sid: dict[int, Rule] = {}
+        for rule in rules:
+            if rule.status != RULE_VALID:
+                # loader đã cảnh báo từng rule hỏng, ở đây chỉ đếm để không log trùng
+                self.skipped_not_valid += 1
+                logger.debug("Rule %s:%d is %s, not indexed", rule.source_file, rule.line_no, rule.status)
+                continue
+            first = by_sid.get(rule.sid) if rule.sid is not None else None
+            if first is not None:
+                # giữ rule nạp trước vì thứ tự rule_files là thứ tự ưu tiên người cấu hình chọn
+                # (chưa chắc Snort xử lý sid trùng thế nào; Snort định danh bằng gid:sid, gid chưa hỗ trợ)
+                self.duplicate_sid += 1
+                logger.warning(
+                    "Rule %s:%d has the same sid %d as %s:%d, skipped",
+                    rule.source_file, rule.line_no, rule.sid, first.source_file, first.line_no,
+                )
+                continue
+            if rule.protocol not in (RULE_PROTO_TCP, RULE_PROTO_UDP, RULE_PROTO_IP):
+                self.skipped_not_valid += 1
+                logger.warning(
+                    "Rule %s:%d has protocol %r that cannot be indexed, skipped",
+                    rule.source_file, rule.line_no, rule.protocol,
+                )
+                continue
+            if rule.sid is not None:
+                by_sid[rule.sid] = rule
+            self._add(rule)
+
+        logger.info(
+            "Rules indexed: indexed=%d skipped_not_valid=%d duplicate_sid=%d",
+            len(self._rules), self.skipped_not_valid, self.duplicate_sid,
+        )
+
+    # chọn bucket cho rule: port đơn (ưu tiên dst) > range (ưu tiên dst) > any
+    # chỉ index theo một bên là đủ vì rule cần cả hai port khớp; bước tra cứu sẽ tra cả
+    # src_port lẫn dst_port của event nên rule <> không cần xử lý riêng
+    def _add(self, rule: Rule) -> None:
+        position = len(self._rules)
+        self._rules.append(rule)
+        if rule.protocol == RULE_PROTO_IP:
+            self._ip_rules.append(position)
+            return
+
+        index = self._tcp if rule.protocol == RULE_PROTO_TCP else self._udp
+        src, dst = rule.src_port, rule.dst_port
+        single = next((p for p in (dst, src) if _is_single(p)), None)
+        if single is not None:
+            index.exact.setdefault(single[0], []).append(position)
+            return
+        ranged = next((p for p in (dst, src) if p is not None), None)
+        if ranged is not None:
+            index.ranges.append((ranged[0], ranged[1], position))
+        else:
+            index.any.append(position)
+
+    # truy cập chỉ đọc: index dựng một lần, không có hàm thêm hay xóa rule
+    @property
+    def rules(self) -> tuple[Rule, ...]:
+        return tuple(self._rules)
+
+    def __len__(self) -> int:
+        return len(self._rules)
