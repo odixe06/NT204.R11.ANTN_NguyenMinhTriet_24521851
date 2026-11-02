@@ -26,7 +26,8 @@ from idscore.models.event import (
     PREPROCESS_VALID,
     Event,
 )
-from idscore.models.flow import Flow
+from idscore.models.detection import DetectionEvent
+from idscore.models.flow import Flow, FlowContext
 from idscore.output.jsonl_writer import JsonlWriter
 from idscore.parsers.application.detector import AppProtocolDetector
 from idscore.parsers.application.registry import build_app_parsers
@@ -205,6 +206,16 @@ def _write_safely(
     return event
 
 
+def _evaluate_safely(
+    engine: EvaluationEngine, event: Event, ctx: FlowContext | None
+) -> list[DetectionEvent]:
+    try:
+        return engine.evaluate(event, ctx)
+    except Exception as exc:
+        _log_step_error(event, "engine.evaluate", exc)
+        return []
+
+
 def _write_flow_safely(flow_writer: JsonlWriter, flow: Flow) -> None:
     try:
         flow_writer.write(flow)
@@ -213,6 +224,27 @@ def _write_flow_safely(flow_writer: JsonlWriter, flow: Flow) -> None:
     except Exception as exc:
         logger.error("Flow %s could not be serialised: %r", flow.flow_id, exc)
         logger.info("Traceback of flow %s", flow.flow_id, exc_info=True)
+
+
+# khác _write_safely, không ghi bản fallback: một Detection Event giả với sid/msg không thật sẽ làm
+# bài 4 sinh cảnh báo sai. Trả True nếu ghi được, để đếm và đối chiếu với matches_total của engine
+def _write_detection_safely(
+    detection_writer: JsonlWriter, detection: DetectionEvent
+) -> bool:
+    try:
+        detection_writer.write(detection)
+    except OSError:
+        raise
+    except Exception as exc:
+        logger.error(
+            "Detection event of sid %s (packet %s) could not be serialised: %r",
+            detection.sid,
+            detection.packet_id,
+            exc,
+        )
+        logger.info("Traceback of packet %s", detection.packet_id, exc_info=True)
+        return False
+    return True
 
 
 # dòng tổng kết cho cả lượt chạy, luôn in đủ 4 status theo thứ tự cố định
@@ -286,17 +318,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     packet_count = 0 # bộ đếm
     counts: Counter = Counter()
     dropped_count = 0
+    detections_written = 0
     exit_code = 0
 
     # thông tin log lúc bắt đầu
     # ex: Reading from pcap 'data/pcap/sample.pcap'
     # writing events to 'logs/events.jsonl'
     logger.info(
-        "Reading from %s '%s', writing events to '%s' and flows to '%s'",
+        "Reading from %s '%s', writing events to '%s', flows to '%s' and detections to '%s'",
         capture.source_type,
         capture.source,
         args.output,
         args.flow_output,
+        args.detection_output,
     )
     
     # mở jsonl writer để ghi các event
@@ -304,6 +338,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         with (
             JsonlWriter(args.output) as writer,
             JsonlWriter(args.flow_output) as flow_writer,
+            JsonlWriter(args.detection_output) as detection_writer,
         ):
             try:
                 # đọc packet
@@ -318,6 +353,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                     _decode_safely(decoder, event)
                     _preprocess_safely(preprocessor, event)
                     finished_flows = _track_safely(tracker, event)
+                    # context_of phải gọi ngay sau process, trước mọi việc khác của packet này:
+                    # ảnh chụp trạng thái flow tại đúng packet (ACK cuối handshake thấy ESTABLISHED)
+                    ctx = tracker.context_of(event)
+                    # gọi với mọi event kể cả bị drop: engine tự bỏ và đếm events_skipped, cli tự lọc thì
+                    # events_received lệch tổng packet; truyền event gốc, không phải bản fallback khi ghi
+                    detections = _evaluate_safely(engine, event, ctx)
                     for flow in finished_flows:
                         _write_flow_safely(flow_writer, flow)
 
@@ -329,6 +370,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                     else:
                         written = _write_safely(writer, event, packet_id, capture)
                         counts[written.parse_status] += 1
+
+                    # một event có thể khớp nhiều rule, mỗi rule khớp là một dòng riêng
+                    for detection in detections:
+                        if _write_detection_safely(detection_writer, detection):
+                            detections_written += 1
             except KeyboardInterrupt:
                 logger.info("Capture stopped by the user")
             finally:
