@@ -1,0 +1,13 @@
+# T03: 1 rule hợp lệ, 9 rule đúng cú pháp Snort nhưng ngoài phạm vi, 1 rule vừa ngoài phạm vi vừa thiếu sid
+alert tcp 127.0.0.1 any -> 127.0.0.1 8000 (msg:"T03 valid GET to port 8000"; flow:to_server,established; content:"GET "; offset:0; depth:4; sid:3030001; rev:1;)
+alert tcp any any -> any 8000 (msg:"T03 pcre"; pcre:"/GET \/t0[0-9]/"; sid:3030002; rev:1;)
+alert tcp any any -> any 8000 (msg:"T03 byte_test"; byte_test:1,>,0,0; sid:3030003; rev:1;)
+alert tcp any any -> any 8000 (msg:"T03 http_uri"; content:"/t01"; http_uri; sid:3030004; rev:1;)
+alert icmp any any -> any any (msg:"T03 protocol icmp"; sid:3030005; rev:1;)
+drop tcp any any -> any 8000 (msg:"T03 action drop"; sid:3030006; rev:1;)
+alert tcp !127.0.0.1 any -> any 8000 (msg:"T03 negated ip"; sid:3030007; rev:1;)
+alert tcp $HOME_NET any -> any 8000 (msg:"T03 variable"; sid:3030008; rev:1;)
+alert tcp any any -> any 8000 (msg:"T03 flow stateless"; flow:stateless; sid:3030009; rev:1;)
+alert tcp any any -> any 8000 (msg:"T03 dsize >="; dsize:>=10; sid:3030010; rev:1;)
+# vừa có pcre (unsupported) vừa thiếu sid (invalid): invalid được ưu tiên
+alert tcp any any -> any 8000 (msg:"T03 pcre and missing sid"; pcre:"/x/"; rev:1;)

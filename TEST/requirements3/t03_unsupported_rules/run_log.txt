@@ -1,0 +1,17 @@
+2026-11-02 20:05:49,687 WARNING idscore.detection.loader: Rule TEST/requirements3/t03_unsupported_rules/test.rules:3 (sid 3030002) is unsupported: option #2 (pcre): keyword is not supported
+2026-11-02 20:05:49,687 WARNING idscore.detection.loader: Rule TEST/requirements3/t03_unsupported_rules/test.rules:4 (sid 3030003) is unsupported: option #2 (byte_test): keyword is not supported
+2026-11-02 20:05:49,687 WARNING idscore.detection.loader: Rule TEST/requirements3/t03_unsupported_rules/test.rules:5 (sid 3030004) is unsupported: option #3 (http_uri): keyword is not supported
+2026-11-02 20:05:49,687 WARNING idscore.detection.loader: Rule TEST/requirements3/t03_unsupported_rules/test.rules:6 (sid 3030005) is unsupported: protocol: 'icmp' is not supported, only tcp, udp, ip
+2026-11-02 20:05:49,687 WARNING idscore.detection.loader: Rule TEST/requirements3/t03_unsupported_rules/test.rules:7 (sid 3030006) is unsupported: action: 'drop' is not supported, only 'alert'
+2026-11-02 20:05:49,687 WARNING idscore.detection.loader: Rule TEST/requirements3/t03_unsupported_rules/test.rules:8 (sid 3030007) is unsupported: src_ip: negation '!' is not supported, got '!127.0.0.1'
+2026-11-02 20:05:49,687 WARNING idscore.detection.loader: Rule TEST/requirements3/t03_unsupported_rules/test.rules:9 (sid 3030008) is unsupported: src_ip: variable '$...' is not supported, got '$HOME_NET'
+2026-11-02 20:05:49,687 WARNING idscore.detection.loader: Rule TEST/requirements3/t03_unsupported_rules/test.rules:10 (sid 3030009) is unsupported: option #2 (flow): 'stateless' is not supported
+2026-11-02 20:05:49,687 WARNING idscore.detection.loader: Rule TEST/requirements3/t03_unsupported_rules/test.rules:11 (sid 3030010) is unsupported: option #2 (dsize): '>=10' is not supported, use N, >N, <N, N<>M or N<=>M
+2026-11-02 20:05:49,687 WARNING idscore.detection.loader: Rule TEST/requirements3/t03_unsupported_rules/test.rules:13 is invalid: missing required option 'sid'; option #2 (pcre): keyword is not supported
+2026-11-02 20:05:49,687 INFO idscore.detection.loader: Rules loaded: files=1 failed_files=0 valid=1 invalid=1 unsupported=9 disabled=0
+2026-11-02 20:05:49,687 INFO idscore.detection.repository: Rules indexed: indexed=1 skipped_not_valid=10 duplicate_sid=0
+2026-11-02 20:05:49,687 INFO idscore.cli: Reading from pcap 'TEST/requirements3/t01_load_rules/input.pcap', writing events to 'TEST/requirements3/t03_unsupported_rules/events.jsonl', flows to 'TEST/requirements3/t03_unsupported_rules/flows.jsonl' and detections to 'TEST/requirements3/t03_unsupported_rules/detections.jsonl'
+2026-11-02 20:05:49,691 INFO idscore.cli: Total packets: 12 (OK 12, PARTIAL 0, UNKNOWN 0, MALFORMED 0)
+2026-11-02 20:05:49,691 INFO idscore.cli: Dropped events: 0, flows created: 1, flows timed out: 0
+2026-11-02 20:05:49,691 INFO idscore.cli: Detection: events_evaluated=12 events_skipped=0 events_failed=0 candidates_total=12 avg_candidates=1.0 rules_indexed=1 matches_total=1 detections_written=1 rule_errors=0
+2026-11-02 20:05:49,691 INFO idscore.cli: Matches by sid: 3030001=1

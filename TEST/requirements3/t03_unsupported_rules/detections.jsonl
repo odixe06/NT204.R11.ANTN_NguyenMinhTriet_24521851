@@ -1,0 +1,1 @@
+{"packet_id":4,"timestamp":1793624495.886746,"sid":3030001,"rev":1,"msg":"T03 valid GET to port 8000","priority":null,"classtype":null,"src_ip":"127.0.0.1","src_port":51620,"dst_ip":"127.0.0.1","dst_port":8000,"protocol":"TCP","application_protocol":"HTTP","flow_id":"e3a9e34178bfcf9a","matches":[{"content":"GET ","buffer":"payload","start":0,"end":4}]}
