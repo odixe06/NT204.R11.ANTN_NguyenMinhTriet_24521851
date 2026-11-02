@@ -191,6 +191,8 @@ class FlowTracker:
                 state=flow.state,
                 direction=direction,
                 from_client=from_client,
+                fwd_packet_count=flow.fwd_packet_count,
+                bwd_packet_count=flow.bwd_packet_count,
             )
         except Exception as exc:
             logger.error("Packet %d has no flow context: %r", event.packet_id, exc)

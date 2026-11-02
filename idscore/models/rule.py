@@ -15,6 +15,12 @@ RULE_DIR_UNI = "->"
 RULE_DIR_BI = "<>"
 RULE_DIRECTIONS = (RULE_DIR_UNI, RULE_DIR_BI)
 
+# protocol của rule; "IP" khớp mọi TCP/UDP và bắt buộc port any (khác đi thì rule invalid)
+RULE_PROTO_IP = "IP"
+RULE_PROTO_TCP = "TCP"
+RULE_PROTO_UDP = "UDP"
+RULE_PROTOCOLS = (RULE_PROTO_IP, RULE_PROTO_TCP, RULE_PROTO_UDP)
+
 # chiều của option flow
 FLOW_TO_SERVER = "to_server"
 FLOW_TO_CLIENT = "to_client"
@@ -24,8 +30,9 @@ FLOW_RULE_DIRECTIONS = (FLOW_TO_SERVER, FLOW_TO_CLIENT)
 DSIZE_EQ = "="
 DSIZE_GT = ">"
 DSIZE_LT = "<"
-DSIZE_RANGE = "<>"
-DSIZE_OPS = (DSIZE_EQ, DSIZE_GT, DSIZE_LT, DSIZE_RANGE)
+DSIZE_RANGE = "<>" # khoảng mở, không gồm hai đầu (ngữ nghĩa Snort 3)
+DSIZE_RANGE_INCL = "<=>" # khoảng đóng, gồm hai đầu
+DSIZE_OPS = (DSIZE_EQ, DSIZE_GT, DSIZE_LT, DSIZE_RANGE, DSIZE_RANGE_INCL)
 
 # port đã parse: None là any, còn lại là (low, high), port đơn có low == high
 PortRange = tuple[int, int]
@@ -48,7 +55,8 @@ class Content:
 @dataclass(frozen=True)
 class DSize:
     # dsize:300 -> (=, 300), dsize:>500 -> (>, 500), dsize:<10 -> (<, 10)
-    # dsize:300<>400 -> (<>, 300, 400); high chỉ có ở dạng range
+    # dsize:300<>400 -> (<>, 300, 400), dsize:300<=>400 -> (<=>, 300, 400)
+    # high chỉ có ở hai dạng range
     op: str
     low: int
     high: int | None = None
@@ -64,7 +72,7 @@ class Rule:
     reasons: list[str] = field(default_factory=list)
 
     # header; IP None là any, IP đơn là mạng /32
-    # protocol viết hoa như Event.transport_protocol (TCP, UDP, ...)
+    # protocol viết hoa như Event.transport_protocol: IP, TCP hoặc UDP (xem RULE_PROTOCOLS)
     action: str | None = None
     protocol: str | None = None
     src_ip: IPv4Network | None = None

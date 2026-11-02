@@ -108,3 +108,6 @@ class FlowContext:
     state: str | None  # None với UDP
     direction: str  # chiều của event: forward/backward
     from_client: bool | None  # None nếu không xác định được client
+    # số packet mỗi chiều, để biết flow (đặc biệt UDP) đã có packet hai chiều chưa
+    fwd_packet_count: int
+    bwd_packet_count: int

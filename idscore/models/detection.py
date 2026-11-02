@@ -63,26 +63,22 @@ class DetectionEvent:
     matches: list[ContentMatch] = field(default_factory=list)
 
     def to_dict(self) -> dict:
-        # None bị lược bỏ như Event.to_dict; matches luôn có để rule không có content vẫn rõ ràng
-        result = {
-            key: value
-            for key, value in (
-                ("packet_id", self.packet_id),
-                ("timestamp", self.timestamp),
-                ("sid", self.sid),
-                ("rev", self.rev),
-                ("msg", self.msg),
-                ("priority", self.priority),
-                ("classtype", self.classtype),
-                ("src_ip", self.src_ip),
-                ("src_port", self.src_port),
-                ("dst_ip", self.dst_ip),
-                ("dst_port", self.dst_port),
-                ("protocol", self.protocol),
-                ("application_protocol", self.application_protocol),
-                ("flow_id", self.flow_id),
-            )
-            if value is not None
+        # khác Event.to_dict: luôn giữ đủ key, thiếu giá trị thì ghi null,
+        # để schema của detection event cố định cho alert/logging
+        return {
+            "packet_id": self.packet_id,
+            "timestamp": self.timestamp,
+            "sid": self.sid,
+            "rev": self.rev,
+            "msg": self.msg,
+            "priority": self.priority,
+            "classtype": self.classtype,
+            "src_ip": self.src_ip,
+            "src_port": self.src_port,
+            "dst_ip": self.dst_ip,
+            "dst_port": self.dst_port,
+            "protocol": self.protocol,
+            "application_protocol": self.application_protocol,
+            "flow_id": self.flow_id,
+            "matches": [match.to_dict() for match in self.matches],
         }
-        result["matches"] = [match.to_dict() for match in self.matches]
-        return result

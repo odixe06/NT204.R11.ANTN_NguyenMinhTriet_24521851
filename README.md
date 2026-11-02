@@ -137,16 +137,24 @@ Gom các packet cùng phiên giao tiếp thành một flow hai chiều, duy trì
 
 ### Client của flow và `FlowContext`
 
+- Đề chỉ ghi "bộ rule của Snort" mà không nêu phiên bản, nên bài làm theo **ngữ nghĩa Snort 3**
+  (xác định client của UDP, `dsize:<>` và `<=>`, `flow:established` của UDP). Chưa kiểm chứng
+  Snort 2 xử lý dsize `<>` và UDP established có giống hệt Snort 3 hay không.
 - Mỗi flow ghi nhận bên **client** (field nội bộ `_client_dir`, không ghi ra `flows.jsonl`),
   chỉ gán một lần:
   - TCP: `SYN` không `ACK` thì client là chiều của packet đó; `SYN-ACK` thì client là chiều
     ngược lại. Capture bắt giữa phiên, không thấy handshake, thì client là `None`.
-  - UDP: **quy ước của bài làm** là bên gửi datagram đầu tiên của flow là client. Chưa kiểm
-    chứng quy ước này có giống Snort hay không.
+  - UDP: theo `init_roles_udp` của Snort 3, bên gửi datagram đầu tiên của flow là client,
+    bên nhận là server.
 - `FlowTracker.context_of(event)` trả về `FlowContext`, một snapshot chỉ đọc gồm `flow_id`,
-  `protocol`, `application_protocol`, `state`, `direction` của event và `from_client`
-  (`True`, `False` hoặc `None` nếu không biết client). Trả `None` khi event không thuộc flow
+  `protocol`, `application_protocol`, `state`, `direction` của event, `from_client`
+  (`True`, `False` hoặc `None` nếu không biết client) và `fwd_packet_count`,
+  `bwd_packet_count` (số packet mỗi chiều tính đến event hiện tại). Trả `None` khi event không thuộc flow
   nào (bị drop, invalid, thiếu 5-tuple, hoặc `flow_id` không còn khớp flow trong bảng).
+- UDP không có `Flow.state` (vẫn `None`), vì gán state cho UDP sẽ thêm field vào `flows.jsonl`
+  và lệch với kết quả bài 2 đã nộp. Thay vào đó, `flow:established` của UDP được matcher suy
+  ra từ dữ kiện: flow đã có packet cả hai chiều, tức `fwd_packet_count` và `bwd_packet_count`
+  đều lớn hơn 0 (theo Snort 3). Context chỉ chứa dữ kiện, việc diễn giải thuộc matcher.
 - Phải gọi `context_of` ngay sau `tracker.process(event)` và trước packet kế tiếp, để state
   đã gồm packet hiện tại và flow chưa bị thay thế.
 - Hạn chế: tracker chỉ chuyển sang `ESTABLISHED` sau khi thấy handshake, nên luồng TCP bắt
@@ -193,11 +201,16 @@ Flow bắt đầu giữa chừng, tức packet đầu không phải `SYN`, giữ
   `source_file`, `line_no`, `raw`, `reasons` để chỉ ra rule nằm ở đâu và vì sao bị loại.
   IP lưu dạng `IPv4Network` (`None` là `any`, IP đơn là `/32`), port lưu dạng `(low, high)`
   (`None` là `any`), mỗi `content` là một object riêng và giữ đúng thứ tự khai báo.
+- `Rule.protocol` là `IP`, `TCP` hoặc `UDP`. **Quy ước của bài làm:** rule `ip` bắt buộc cả hai
+  port là `any`, khác đi thì rule `invalid`.
+- `dsize` có các toán tử `=`, `>`, `<`, `<>` (khoảng mở, không gồm hai đầu) và `<=>` (khoảng
+  đóng, gồm hai đầu), theo ngữ nghĩa Snort 3.
 - **Quy ước của bài làm** (chưa đối chiếu với Snort): `sid` và `msg` là bắt buộc, thiếu `rev`
   thì mặc định 1, `classtype` và `priority` mặc định `None`.
 - `idscore/models/detection.py`: `DetectionEvent` lấy `timestamp` từ event (không dùng giờ hệ
   thống), có `packet_id` để tra về `events.jsonl`, và `to_dict()` nên dùng lại được
-  `JsonlWriter`. Pattern `bytes` được ghi dạng đọc được, byte không in được viết là `|41 42|`.
+  `JsonlWriter`. Khác `Event.to_dict`, `to_dict()` của detection event luôn giữ đủ các key,
+  thiếu giá trị (`priority`, `classtype`, `flow_id`, ...) thì ghi `null`, để schema cố định. Pattern `bytes` được ghi dạng đọc được, byte không in được viết là `|41 42|`.
 
 ## Pipeline xử lý
 
