@@ -1,0 +1,35 @@
+# rules/parser_check.rules: file thử cho Rule Parser, KHÔNG nằm trong detection.rule_files mặc định
+# gồm rule valid, invalid, unsupported; mỗi rule lỗi một nhóm lỗi cố ý, dùng lại cho testcase 1-4
+# sid 2000xxx: valid, 2001xxx: invalid, 2002xxx: unsupported
+
+# ---- valid ----
+alert tcp any any -> any 80 (msg:"V tcp flags dsize flow"; flow:to_server,established; flags:A+; dsize:>0; content:"GET "; depth:4; classtype:misc-activity; priority:2; sid:2000001; rev:2;)
+alert udp 10.0.0.0/8 any <> any 53 (msg:"V udp hex"; content:"|07|example|03|com|00|"; nocase; dsize:30<>100; sid:2000002;)
+alert ip 10.0.0.1 any -> 192.168.0.0/16 any (msg:"V ip header only"; sid:2000003;)
+
+   # comment thụt lề giữa các rule, dòng trống ở trên và dưới
+
+alert tcp any 1024: -> any :1023 (msg:"V two contents"; content:"a"; content:"b"; distance:0; within:5; sid:2000004;)
+alert tcp any any -> any any (msg:"V say \"hi\""; reference:url,example.com; metadata:a b; flags:SA; sid:2000005;)
+
+# ---- invalid: mỗi dòng một nhóm lỗi ----
+alert tcp any any -> any (msg:"I header has 6 tokens"; sid:2001001;)
+alert tcp 10.0.0.256 any -> any 80 (msg:"I bad ip"; sid:2001002;)
+alert tcp any 70000 -> any 80 (msg:"I bad port"; sid:2001003;)
+alert tcp any any -> any 80 (msg:unquoted; sid:2001004;)
+alert tcp any any -> any 80 (msg:"I missing sid";)
+alert tcp any any -> any 80 (msg:"I bad hex"; content:"|4G|"; sid:2001006;)
+alert tcp any any -> any 80 (msg:"I modifier before content"; nocase; content:"a"; sid:2001007;)
+alert tcp any any -> any 80 (msg:"I bad dsize"; dsize:abc; sid:2001008;)
+alert tcp any any -> any 80 (msg:"I conflicting flow"; flow:to_server,to_client; sid:2001009;)
+alert tcp any any -> any 80 (msg:"I unknown keyword"; foo:1; sid:2001010;)
+alert tcp any any -> any 80 (msg:"I duplicate sid"; sid:2001011; sid:2001012;)
+alrt tcp any any -> any 80 (msg:"I header bad action but sid is readable"; sid:2001013;)
+alert ip any 80 -> any any (msg:"I ip rule with a port"; sid:2001014;)
+
+# ---- unsupported: mỗi dòng một nhóm ngoài phạm vi ----
+log tcp any any -> any 80 (msg:"U action log"; sid:2002001;)
+alert tcp $HOME_NET any -> any 80 (msg:"U variable"; sid:2002002;)
+alert tcp any any -> any 80 (msg:"U pcre"; pcre:"/x/"; sid:2002003;)
+alert tcp any any -> any 80 (msg:"U flags mask"; flags:SF,12; sid:2002004;)
+alert tcp any any -> any 80 (msg:"U flow stateless"; flow:stateless; sid:2002005;)
