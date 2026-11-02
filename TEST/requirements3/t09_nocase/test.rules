@@ -1,0 +1,5 @@
+# T09: payload chứa header X-Test: AbCdEf
+alert tcp any any -> any 8000 (msg:"T09 R1 abcdef case sensitive"; content:"abcdef"; sid:3090001; rev:1;)
+alert tcp any any -> any 8000 (msg:"T09 R2 abcdef nocase"; content:"abcdef"; nocase; sid:3090002; rev:1;)
+alert tcp any any -> any 8000 (msg:"T09 R3 AbCdEf exact case"; content:"AbCdEf"; sid:3090003; rev:1;)
+alert tcp any any -> any 8000 (msg:"T09 R4 ABCDEF nocase"; content:"ABCDEF"; nocase; sid:3090004; rev:1;)
