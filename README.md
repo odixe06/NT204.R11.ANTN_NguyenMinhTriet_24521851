@@ -235,6 +235,14 @@ Flow bắt đầu giữa chừng, tức packet đầu không phải `SYN`, giữ
   chưa escape bên trong ngoặc kép được chấp nhận (chưa chắc Snort 2 có chấp nhận). Keyword
   so khớp chính xác, chữ thường. Parser ghi đủ lỗi của rule rồi mới chốt status: có lỗi cú
   pháp thì `invalid`, chỉ có lỗi ngoài phạm vi thì `unsupported`.
+- **Header (quy ước của bài làm):** đúng 7 token. Chỉ `alert` là hợp lệ, `log`/`pass`/`drop`/
+  `reject`/`sdrop` là `unsupported`, action lạ là `invalid`. Protocol `tcp`/`udp`/`ip` hợp lệ,
+  `icmp` là `unsupported`, tên khác (kể cả tên service như `http`) là `invalid` vì chưa chắc
+  danh sách service của Snort 3. Direction chỉ có `->` và `<>`; `<-` là `invalid` vì Snort không
+  có toán tử này. `any` viết đúng chữ thường. IP chỉ nhận `a.b.c.d` hoặc CIDR; IP có host bits
+  như `10.0.0.5/24` là `invalid` (không tự đưa về `10.0.0.0/24`), netmask dạng
+  `10.0.0.0/255.0.0.0` là `invalid`. Port `:b` hiểu là `0:b` (chưa chắc Snort lấy 0 hay 1),
+  `a:` là `a:65535`. `!`, `[...]`, `$VAR` và IPv6 là `unsupported`.
 - Việc đánh `invalid` (ví dụ rule `ip` có port khác `any`) thuộc Rule Parser & Validator,
   loader chỉ đọc file và chuyển từng dòng sang parser.
 
