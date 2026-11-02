@@ -1,0 +1,7 @@
+# T12: header <> port 8000 để xét packet cả hai chiều; request GET trong pcap dài 81 byte
+alert tcp any any <> any 8000 (msg:"T12 flags S"; flags:S; sid:3120001; rev:1;)
+alert tcp any any <> any 8000 (msg:"T12 flags SA"; flags:SA; sid:3120002; rev:1;)
+alert tcp any any <> any 8000 (msg:"T12 flags A dsize 0"; flags:A; dsize:0; sid:3120003; rev:1;)
+alert tcp any any <> any 8000 (msg:"T12 flags PA"; flags:PA; sid:3120004; rev:1;)
+alert tcp any any <> any 8000 (msg:"T12 dsize >0"; dsize:>0; sid:3120005; rev:1;)
+alert tcp any any <> any 8000 (msg:"T12 dsize 81"; dsize:81; sid:3120006; rev:1;)
