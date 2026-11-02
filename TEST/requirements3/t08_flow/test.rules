@@ -1,0 +1,5 @@
+# T08: header any any -> any any để chỉ có flow quyết định
+alert tcp any any -> any any (msg:"T08 R1 to_server established"; flow:to_server,established; sid:3080001; rev:1;)
+alert tcp any any -> any any (msg:"T08 R2 to_server established HTTP/1."; flow:to_server,established; content:"HTTP/1."; sid:3080002; rev:1;)
+alert tcp any any -> any any (msg:"T08 R3 to_client established HTTP/1."; flow:to_client,established; content:"HTTP/1."; sid:3080003; rev:1;)
+alert tcp any any -> any any (msg:"T08 R4 to_server not_established"; flow:to_server,not_established; sid:3080004; rev:1;)
