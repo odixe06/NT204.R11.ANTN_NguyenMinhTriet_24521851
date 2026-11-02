@@ -1,0 +1,4 @@
+# config cho T06: chỉ nạp bộ rule của testcase này
+detection:
+  rule_files:
+    - TEST/requirements3/t06_indexer/test.rules

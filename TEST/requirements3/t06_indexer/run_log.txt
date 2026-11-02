@@ -1,0 +1,21 @@
+stats   : {"indexed": 7, "skipped_not_valid": 0, "duplicate_sid": 0, "TCP": {"exact_ports": 1, "exact_rules": 2, "ranges": 1, "any": 1}, "UDP": {"exact_ports": 1, "exact_rules": 1, "ranges": 0, "any": 1}, "IP": 1}
+describe: {"TCP": {"exact": {"80": [3060001, 3060004]}, "ranges": [[1024, 65535, 3060002]], "any": [3060003]}, "UDP": {"exact": {"53": [3060005]}, "ranges": [], "any": [3060006]}, "IP": [3060007]}
+[1] TCP 40000 -> 80
+    candidates: [3060001, 3060002, 3060003, 3060004, 3060007]
+    kỳ vọng   : [3060001, 3060002, 3060003, 3060004, 3060007] | khớp
+[2] TCP 80 -> 40000
+    candidates: [3060001, 3060002, 3060003, 3060004, 3060007]
+    kỳ vọng   : [3060001, 3060002, 3060003, 3060004, 3060007] | khớp
+[3] TCP 40000 -> 5000
+    candidates: [3060002, 3060003, 3060007]
+    kỳ vọng   : [3060002, 3060003, 3060007] | khớp
+[4] UDP 40000 -> 53
+    candidates: [3060005, 3060006, 3060007]
+    kỳ vọng   : [3060005, 3060006, 3060007] | khớp
+[5] UDP 40000 -> 123
+    candidates: [3060006, 3060007]
+    kỳ vọng   : [3060006, 3060007] | khớp
+[6] UNKNOWN không có transport
+    candidates: []
+    kỳ vọng   : [] | khớp
+events: 6, sai kỳ vọng: 0

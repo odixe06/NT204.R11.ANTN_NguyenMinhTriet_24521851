@@ -1,0 +1,8 @@
+# T06: mỗi rule rơi vào một bucket khác nhau của indexer
+alert tcp any any -> any 80 (msg:"T06 tcp exact 80"; sid:3060001; rev:1;)
+alert tcp any any -> any 1024:65535 (msg:"T06 tcp range 1024:65535"; sid:3060002; rev:1;)
+alert tcp any any -> any any (msg:"T06 tcp any"; sid:3060003; rev:1;)
+alert tcp any 80 <> any any (msg:"T06 tcp <> src port 80"; sid:3060004; rev:1;)
+alert udp any any -> any 53 (msg:"T06 udp exact 53"; sid:3060005; rev:1;)
+alert udp any any -> any any (msg:"T06 udp any"; sid:3060006; rev:1;)
+alert ip any any -> any any (msg:"T06 ip"; sid:3060007; rev:1;)
