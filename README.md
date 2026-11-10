@@ -349,11 +349,25 @@ comment mô tả hợp đồng của từng module.
 │                         + kiểm tra timeout, cập nhật         │
 │                           thống kê, TCP state, SMTP session  │
 └──────────────────────────────────────────────────────────────┘
-       │                                   │
-       │ event.to_dict()                   │ flow hết hạn, flow còn lại
-       │ trừ event drop                    │ khi kết thúc capture
-       ▼                                   ▼
-[ Event Writer ] events.jsonl       [ Flow Writer ] flows.jsonl
+       │  Event + FlowContext (tracker.context_of)
+       ▼
+┌──────────────────────────────────────────────────────────────┐
+│ Bài 3: Core Engine                                           │
+│                                                              │
+│  Khởi động: Rule Loader → Rule Parser & Validator            │
+│             → Rule Repository / Indexer (nạp một lần)        │
+│                                                              │
+│ 10. Evaluation Engine → rule ứng viên theo protocol + port,  │
+│                         bỏ qua event drop                    │
+│ 11. Matching Engine   → header, flags, dsize, flow, content  │
+│ 12. Event Generator   → DetectionEvent cho mỗi rule khớp     │
+└──────────────────────────────────────────────────────────────┘
+       │                      │                        │
+       │ event.to_dict()      │ flow hết hạn, flow     │ mỗi rule khớp
+       │ trừ event drop       │ còn lại khi kết thúc   │ là một dòng
+       ▼                      ▼                        ▼
+[ Event Writer ]       [ Flow Writer ]         [ Detection Writer ]
+  events.jsonl           flows.jsonl             detections.jsonl
 
                  [ Runtime Logger ] ids.log
 ```
@@ -363,8 +377,14 @@ comment mô tả hợp đồng của từng module.
   vừa gán.
 - Mỗi bước 7, 8, 9 có guard riêng trong `cli.py`: exception của một bước được ghi vào `errors`
   với tiền tố `cli:` và log, các bước sau và packet sau vẫn chạy tiếp.
-- Detection Engine ở các bài sau chỉ làm việc với `events.jsonl` và `flows.jsonl`, không truy
-  cập trực tiếp packet của Scapy.
+- Rule được nạp và index một lần trước vòng lặp. Không dựng được engine thì dừng với exit code 1;
+  rule `invalid`/`unsupported` chỉ sinh cảnh báo và bị bỏ, không làm dừng chương trình.
+- `tracker.context_of(event)` được gọi ngay sau Flow Tracker để chụp trạng thái flow tại đúng packet
+  đó, ví dụ ACK cuối handshake đã thấy `ESTABLISHED`.
+- Engine nhận mọi event kể cả event drop, tự bỏ qua và đếm vào `events_skipped`. Lỗi của một rule
+  được chặn và đếm vào `rule_errors`, các rule khác và packet sau vẫn chạy tiếp.
+- Core Engine làm việc với `Event` và `FlowContext` trong bộ nhớ, không truy cập packet của Scapy.
+  Payload thô (`Event.payload`) được chép sẵn lúc parse TCP/UDP và không ghi vào `events.jsonl`.
 
 ## Cài đặt
 
@@ -471,24 +491,33 @@ File config chỉ cần ghi các key muốn đổi, key còn lại lấy giá tr
 
 ### Kết quả trên terminal và exit code
 
-Mỗi lượt chạy kết thúc bằng hai dòng tổng kết trên `stderr`:
+Mỗi lượt chạy kết thúc bằng ba dòng tổng kết trên `stderr`, ví dụ của testcase T14 bài 3:
 
 ```text
 Total packets: 12 (OK 12, PARTIAL 0, UNKNOWN 0, MALFORMED 0)
 Dropped events: 0, flows created: 1, flows timed out: 0
+Detection: events_evaluated=12 events_skipped=0 events_failed=0 candidates_total=12 avg_candidates=1.0 rules_indexed=1 matches_total=1 detections_written=1 rule_errors=0
 ```
+
+- `avg_candidates` nhỏ hơn `rules_indexed` cho thấy indexer đã loại bớt rule trước khi match.
+- `detections_written` lệch `matches_total` nghĩa là có Detection Event ghi lỗi, chương trình in thêm
+  một cảnh báo.
+- Chỉ có trong file log: `Rules loaded: files=… valid=… invalid=… unsupported=… disabled=…`,
+  `Rules indexed: …` và `Matches by sid: 3140001=1`. Cảnh báo của từng rule bị loại (kèm file, dòng,
+  `sid`, lý do) hiện cả trên terminal.
 
 | exit code | trường hợp |
 | --- | --- |
 | 0 | chạy hết nguồn, hoặc người dùng bấm `Ctrl+C` |
-| 1 | lỗi nguồn capture `CaptureError`, lỗi ghi file output `OSError`, config không hợp lệ, hoặc `--output` và `--flow-output` trỏ cùng một file |
+| 1 | lỗi nguồn capture `CaptureError`, lỗi ghi file output `OSError`, config không hợp lệ, không dựng được detection engine, hoặc hai trong ba file `--output`, `--flow-output`, `--detection-output` trùng nhau |
 
 `stdout` không có gì, nên output JSONL không bao giờ lẫn với thông báo của chương trình.
 Chi tiết lỗi và traceback nằm trong file log; terminal chỉ hiện mức `WARNING` trở lên.
 
 ## Ví dụ output
 
-Mỗi dòng là một record. Field nào không có giá trị thì bị lược khỏi JSON.
+Mỗi dòng là một record. Field nào không có giá trị thì bị lược khỏi JSON, trừ `detections.jsonl`
+luôn giữ đủ 15 key.
 
 ### `events.jsonl`
 
@@ -530,12 +559,27 @@ Flow UDP DNS, nguyên văn của testcase T10. Flow UDP không có các field ri
 {"flow_id":"87a6782bbc9f2fcb","protocol":"UDP","application_protocol":"DNS","a_ip":"172.18.124.92","a_port":43387,"b_ip":"8.8.8.8","b_port":53,"start_time":1791816986.157162,"last_seen":1791816986.200029,"duration":0.042867,"packet_count":2,"byte_count":180,"fwd_packet_count":1,"fwd_byte_count":80,"bwd_packet_count":1,"bwd_byte_count":100,"end_reason":"end_of_capture"}
 ```
 
+### `detections.jsonl`
+
+Rule `content:"../"` khớp request GET, nguyên văn của testcase T14 bài 3. `packet_id` và `flow_id`
+dùng để tra ngược về `events.jsonl` và `flows.jsonl`; `start`/`end` là vị trí trong payload, `end`
+không tính:
+
+```json
+{"packet_id":4,"timestamp":1793624568.839587,"sid":3140001,"rev":1,"msg":"Directory traversal detected","priority":1,"classtype":"web-application-attack","src_ip":"127.0.0.1","src_port":58568,"dst_ip":"127.0.0.1","dst_port":8000,"protocol":"TCP","application_protocol":"HTTP","flow_id":"e40b0a8faabe93ea","matches":[{"content":"../","buffer":"payload","start":5,"end":8}]}
+```
+
+Một packet khớp nhiều rule thì có nhiều dòng cùng `packet_id`, theo thứ tự nạp rule (testcase T13).
+Rule không có `content` thì `matches` là `[]`; rule thiếu `priority`/`classtype` ghi `null`.
+
 Đọc file bằng `jq`:
 
 ```bash
 jq -c 'select(.parse_status != "OK") | {packet_id, parse_status, errors}' logs/events.jsonl
 jq -r .preprocess_status logs/events.jsonl | sort | uniq -c
 jq -c '{flow_id, protocol, state, packet_count, end_reason}' logs/flows.jsonl
+jq -c '{packet_id, sid, msg, matches}' logs/detections.jsonl
+jq -r .sid logs/detections.jsonl | sort | uniq -c
 ```
 
 ## Schema của event
@@ -684,6 +728,16 @@ thiếu field hoặc sai kiểu; các script này chạy với `PYTHONPATH=.` t�
 - Timeout tính theo timestamp của packet chứ không theo đồng hồ hệ thống, để chạy lại cùng pcap luôn ra cùng kết quả. Hệ quả là flow chỉ được kiểm tra hết hạn khi có packet mới đẩy clock lên; flow cuối cùng của pcap luôn kết thúc với `end_of_capture`.
 - `flow_id` băm cả `start_time`, nên cùng 5-tuple nhưng kết nối lại sau timeout hoặc sau khi đóng sẽ là flow khác với `flow_id` khác.
 - `--output` và `--flow-output` phải là hai file khác nhau: hai writer cùng append một file sẽ làm lẫn hai schema.
+
+### Bài tập 3: Core Engine
+
+- `JsonlWriter` mở file ở chế độ append: chạy lại vào cùng file output sẽ nối thêm dòng chứ không ghi đè. Khi so sánh kết quả giữa hai lần chạy phải dùng thư mục output mới hoặc xóa file cũ trước.
+- `within`/`depth` nhỏ hơn độ dài pattern bị parser loại ngay lúc nạp, nên testcase "thiếu 1 byte" của T11 phải viết `distance:1; within:5` cho pattern 6 byte thay vì `within:4`.
+- `flow:not_established` khớp mọi packet ngoài trạng thái `ESTABLISHED`, kể cả gói FIN của client khi flow đã `CLOSED` (T08). Muốn chỉ bắt gói mở kết nối thì thêm `flags:S`. Ngược lại ACK cuối handshake đã thấy `ESTABLISHED` nên khớp rule `established`.
+- Rule không có `content` khớp mọi packet qua được header, flags, dsize, flow. Ở T13 rule `flow:to_server,established` khớp GET và thêm 3 gói ACK của client.
+- Rule `<>` phải được index theo cả `src_port` lẫn `dst_port`, nếu chỉ tra `dst_port` thì gói trả lời của server bị sót.
+- `dsize` đo payload TCP/UDP thật, nên giá trị trong rule test phải lấy từ pcap (request GET của T12 dài 81 byte), không tính tay từ lệnh `curl`.
+- AppArmor profile của `tcpdump` không cho nhận signal từ tiến trình khác, `kill` bị từ chối kể cả khi chạy `sudo`. Khi tạo pcap chỉ dừng được bằng `Ctrl+C` ở chính terminal chạy `tcpdump`, hoặc dùng `-G`/`-W` để `tcpdump` tự thoát.
 
 ## Mục đích khi sử dụng các công cụ AI
 
